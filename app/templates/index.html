@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- jquery -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+
+    <link rel="stylesheet" href={{ url_for("static", filename = '/styles.css') }}>
+    <title>Image Search</title>
+</head>
+<body>
+    <h1>Envie sua imagem</h1>
+    <section class="upload">
+        <div class="container">
+            <div id="preview">
+                <p><strong>Imagem:</strong></p>
+                <img id="imagePreview" src="" alt="Pré-visualização" width="226" style="display: none;">
+            </div>
+
+            <form method="POST" enctype="multipart/form-data" id="sendImage">
+                <input type="file" name="image" id="inputImage" accept="image/*" capture="environment" required><br>
+                <button type="submit" id="submitImage"> Enviar </button>
+            </form>
+        </div>
+    </section>
+    
+    <section class="view">
+        <h2> Resultado </h2>
+        <div class="loader" style="display: none;" id="loader"></div>
+        <div id="images_list"> </div>
+    </section>
+    
+
+    <script>
+        $(document).on("submit", "#sendImage", function (e) {
+            e.preventDefault();
+            $("#images_list").empty();
+            document.getElementById("submitImage").disabled = true;
+            document.getElementById("loader").style.display="block";
+            
+
+            var formData = new FormData(this);
+
+            $.ajax({
+                type: "POST",
+                url: "/upload",
+                data: formData,
+                processData: false,  
+                contentType: false,  
+                success: function (response) {
+                    if (response.res === "error"){
+                        $("#username-error").html(response.message)
+                    }
+                    else{
+                        response.images_path.forEach(element => {
+                            console.log(element)
+                            
+                            var resp = "<img class='image_result' src= '"+element+"' width='240'>"
+                            $("#images_list").append(resp);
+                        });
+                        
+                    }     
+                    document.getElementById("submitImage").disabled = false;  
+                    document.getElementById("loader").style.display = "none";             
+                },
+            });
+
+        });
+
+        $(document).on("change", "#inputImage", function () {
+            const imagemPreview = document.getElementById('imagePreview');
+
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+
+                reader.onload = function (e) {
+                    imagemPreview.src = e.target.result;
+                    imagemPreview.style.display = 'block';
+                };
+
+                reader.readAsDataURL(file);
+            }
+        });
+    </script>
+</body>
+</html>
