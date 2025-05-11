@@ -21,6 +21,22 @@
 
             <form method="POST" enctype="multipart/form-data" id="sendImage">
                 <input type="file" name="image" id="inputImage" accept="image/*" capture="environment" required><br>
+                <p><label for="selectTabela">Tabela:</label>
+                <select name="Tabela" id="selectTabela">
+                    <option value="img_pgvector">pgvector</option>
+                    <option value="img_pgvector">array</option>
+                </select> </p>
+                <p><label for="selectOperador">Operador:</label>
+                <select name="Operador" id="selectOperador">
+                    <option value="<+>">L1</option>
+                    <option value="<->">L2</option>
+                    <option value="<=>" selected>Cosine</option>
+                    <option value="<#>">Inner product</option>
+                </select> </p>
+                <p><label for="selectCountry">Pais:</label>
+                <select name="Pais" id="selectCountry">
+                    <option value="" selected></option>
+                </select> </p>
                 <button type="submit" id="submitImage"> Enviar </button>
             </form>
         </div>
@@ -34,6 +50,23 @@
     
 
     <script>
+        $(document).ready(function() {
+            document.getElementById("submitImage").disabled = true; 
+            $.ajax({
+                type: 'GET',
+                url: '/countries',
+                processData: false,  
+                contentType: false,
+                success: function(response) {
+                    response.data.forEach(pais => {
+                            
+                        var resp = "<option value='"+pais+"'>"+pais+"</option>"
+                        $("#selectCountry").append(resp);
+                    });
+                    document.getElementById("submitImage").disabled = false; 
+                }
+            });
+        });
         $(document).on("submit", "#sendImage", function (e) {
             e.preventDefault();
             $("#images_list").empty();

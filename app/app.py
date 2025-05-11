@@ -13,10 +13,33 @@ app.app_context().push()
 def index():
     return render_template("index.html")
 
+@app.route('/countries', methods=['GET'])
+def get_countries():
+    print("get countries")
+    country_names = []
+    with psycopg.connect(os.getenv('DB_URL')) as conn:
+        cursor = conn.cursor()
+        sql_get_countries = f"SELECT DISTINCT(country_name) FROM metadata"
+
+        try:
+            cursor.execute(sql_get_countries)
+            countries = cursor.fetchall()
+
+            for country_name in countries:
+                name = country_name[0]
+                country_names.append(name)
+            
+        except Exception as e:
+            print(e)
+    return jsonify({"data": country_names})
+
 @app.route('/upload', methods=['POST'])
 def upload():
+    print("form:", request.form.get('Operador'))
     file = request.files.get('image')
-    
+    operator = request.form.get('Operador')
+    country = request.form.get('Pais')
+    table = request.form.get('Tabela')
     if file and file.filename != '':
         encoder = Encoder()
         vector = encoder.encode(file)
@@ -24,7 +47,7 @@ def upload():
 
         with psycopg.connect(os.getenv('DB_URL')) as conn:
             cursor = conn.cursor()
-            sql_search_images = f"SELECT * FROM img_pgvector ORDER BY embedding <-> '{vector}' LIMIT 5"
+            sql_search_images = f"SELECT * FROM img_pgvector ORDER BY embedding {operator} '{vector}' LIMIT 5"
 
             try:
                 cursor.execute(sql_search_images)
