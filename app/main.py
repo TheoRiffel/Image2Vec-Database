@@ -44,6 +44,20 @@ def insertImages(vectors, metadata):
         except Exception as e:
             print(e)
     
+    cursor.execute("SELECT count(*) FROM img_pgarray")
+    count = cursor.fetchone()[0]
+    
+    if count == 0:
+        sql = "INSERT INTO img_pgarray (id, embedding) VALUES (%s, %s)"
+
+        vectors_pg = [(vid, json.loads(vec)) for vid, vec in vectors]
+        try:
+            cursor.executemany(sql, vectors_pg)
+            conn.commit()
+            print("Inserted")
+        except Exception as e:
+            print(e)
+    
     cursor.execute("SELECT count(*) FROM metadata")
     count = cursor.fetchone()[0]
 
