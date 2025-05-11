@@ -8,9 +8,14 @@ CREATE TABLE IF NOT EXISTS metadata (
     img_rel_path character(55),
     topics character varying(50)[],
     place character varying(20),
-    income numeric(3,0),
+    income numeric(10,3),
     imagenet_synonyms character varying(50)[],
     imagenet_sysnet_id integer[]
+);
+
+CREATE TABLE IF NOT EXISTS img_pgvector (
+    id character(24) PRIMARY KEY,
+    embedding vector(4096)
 );
 
 CREATE TABLE IF NOT EXISTS img_pgvector (
