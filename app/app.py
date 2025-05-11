@@ -3,6 +3,7 @@ import psycopg
 import os
 from dotenv import load_dotenv
 from encoder import Encoder
+from datetime import datetime
 
 load_dotenv()
 
@@ -33,13 +34,46 @@ def get_countries():
             print(e)
     return jsonify({"data": country_names})
 
+def build_query_array(operator, vector):
+    distances = {
+        '<+>': ('SUM(ABS(a - b))', 'ASC'),
+        '<->': ('SQRT(SUM(POWER(a - b, 2)))', 'ASC'),
+        '<=>': ('1 - SUM(a * b) / (sqrt(SUM(a * a)) * sqrt(SUM(b * b)))', 'ASC'),
+        '<#>': ('SUM(a * b)', 'DESC'),
+    }
+
+    vector_str = 'ARRAY[' + ', '.join(map(str, vector)) + ']'
+    sql_search_images = \
+    f'''
+        SELECT id
+        FROM img_pgarray
+        ORDER BY (
+            SELECT {distances[operator][0]}
+            FROM unnest(embedding) WITH ORDINALITY AS t1(a, i)
+            JOIN unnest({vector_str}) WITH ORDINALITY AS t2(b, j)
+            ON i = j
+        ) {distances[operator][1]}
+        LIMIT 6;
+    '''
+
+    return sql_search_images
+
+def build_query_vector(operator, vector):
+    sql_search_images = f'''SELECT id 
+                            FROM img_pgvector 
+                            ORDER BY embedding {operator} '{vector}' 
+                            LIMIT 6
+                        ''' 
+    
+    return sql_search_images
+
 @app.route('/upload', methods=['POST'])
 def upload():
-    print("form:", request.form.get('Operador'))
     file = request.files.get('image')
     operator = request.form.get('Operador')
     country = request.form.get('Pais')
     table = request.form.get('Tabela')
+
     if file and file.filename != '':
         encoder = Encoder()
         vector = encoder.encode(file)
@@ -47,16 +81,22 @@ def upload():
 
         with psycopg.connect(os.getenv('DB_URL')) as conn:
             cursor = conn.cursor()
-            sql_search_images = f"SELECT * FROM img_pgvector ORDER BY embedding {operator} '{vector}' LIMIT 5"
-
+            
+            sql_search_images = build_query_vector(operator, vector) \
+                                if table == 'img_pgvector'\
+                                else build_query_array(operator, vector)
+            
+           
             try:
+                start = datetime.now()
                 cursor.execute(sql_search_images)
+                end = datetime.now()
+
+                print("Tempo de execução: ", end - start)
+
                 images = cursor.fetchall()
 
-                images_id = []
-                for image in images:
-                    id, _ = image
-                    images_id.append(id)
+                images_id = [id[0] for id in images]
                 
                 sql_get_images = f"SELECT * FROM metadata WHERE id IN {tuple(images_id)}"
                 cursor.execute(sql_get_images)
@@ -66,8 +106,6 @@ def upload():
                 images_path = []
                 for image in images_metadata:
                     images_path.append(image_src + image[4].strip())
-                    
-                print(images_path)
 
                 return jsonify({"images_path": images_path})
 
