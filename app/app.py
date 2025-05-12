@@ -14,10 +14,11 @@ app.app_context().push()
 def index():
     return render_template("index.html")
 
-@app.route('/countries', methods=['GET'])
-def get_countries():
-    print("get countries")
+@app.route('/metadata', methods=['GET'])
+def get_metadata():
+    print("get metadata")
     country_names = []
+    regions = []
     with psycopg.connect(os.getenv('DB_URL')) as conn:
         cursor = conn.cursor()
         sql_get_countries = f"SELECT DISTINCT(country_name) FROM metadata ORDER BY country_name"
@@ -26,13 +27,23 @@ def get_countries():
             cursor.execute(sql_get_countries)
             countries = cursor.fetchall()
 
-            for country_name in countries:
-                name = country_name[0]
-                country_names.append(name)
+            country_names = [country_name[0] for country_name in countries]
             
         except Exception as e:
             print(e)
-    return jsonify({"data": country_names})
+        
+        sql_get_regions = f"SELECT DISTINCT(region_id) FROM metadata ORDER BY region_id"
+
+        try:
+            cursor.execute(sql_get_regions)
+            region_ids = cursor.fetchall()
+
+            regions = [region_id[0] for region_id in region_ids]
+            
+        except Exception as e:
+            print(e)
+    
+    return jsonify({"countries": country_names, "regions": regions})
 
 def build_query_array(operator, vector):
     distances = {
@@ -79,64 +90,90 @@ def build_query_vector(operator, vector, metadata):
     
     return sql_search_images
 
+def get_images(sql_search_images):
+    with psycopg.connect(os.getenv('DB_URL')) as conn:
+        cursor = conn.cursor()
+                         
+        try:
+            start = datetime.now()
+            cursor.execute(sql_search_images)
+            end = datetime.now()
+
+            print("Tempo de execução: ", end - start)
+            query_time = end - start
+
+            images = cursor.fetchall()
+
+            images_id = [id[0] for id in images]
+                
+            sql_get_images = f"SELECT * FROM metadata WHERE id IN {tuple(images_id)}"
+            cursor.execute(sql_get_images)
+            images_metadata = cursor.fetchall()
+
+            image_src = os.getenv('IMAGE_HOST')
+            images_path = []
+            for image in images_metadata:
+                images_path.append(image_src + image[4].strip())
+
+            return jsonify({"images_path": images_path, "query_time": str(query_time)})
+
+        except Exception as e:
+            print(e)
+    
+
+def get_query_analysis(sql_search_images):
+    with psycopg.connect(os.getenv('DB_URL')) as conn:
+        cursor = conn.cursor()
+              
+        try:
+            explain_query = "EXPLAIN ANALYZE " + sql_search_images
+            cursor.execute(explain_query)
+
+            analysis = cursor.fetchall()
+
+            #formatar a analise para enviar corretamente
+            return jsonify({"query_analysis": analysis})
+                
+        except Exception as e:
+            print(e)
+           
+
+    
+
 @app.route('/upload', methods=['POST'])
 def upload():
     file = request.files.get('image')
     operator = request.form.get('Operador')
     country = request.form.get('Pais')
     table = request.form.get('Tabela')
-
+    region = request.form.get('Regiao')
+    action = request.form.get('acao')
+    
+    print(action)
     if file and file.filename != '':
         encoder = Encoder()
         vector = encoder.encode(file)
         vector = vector.tolist()
 
-        with psycopg.connect(os.getenv('DB_URL')) as conn:
-            cursor = conn.cursor()
+        metadata = []
+        if country != "":
+            metadata.append(f"country_name = '{country}'")
             
-            metadata = []
-            if country != "":
-                metadata.append(f"country_name = '{country}'")
+        if region != "":
+            metadata.append(f"region_id = '{region}'")
                 
-            sql_search_images = build_query_vector(operator, vector, metadata) \
-                                if table == 'img_pgvector'\
-                                else build_query_array(operator, vector)
-                                
-            try:
-                explain_query = "EXPLAIN ANALYZE " + sql_search_images
-                cursor.execute(explain_query)
-                
-                print(cursor.fetchall())
-            except Exception as e:
-                print(e)
-           
-            try:
-                start = datetime.now()
-                cursor.execute(sql_search_images)
-                end = datetime.now()
+        sql_search_images = build_query_vector(operator, vector, metadata) \
+                            if table == 'img_pgvector'\
+                            else build_query_array(operator, vector)
 
-                print("Tempo de execução: ", end - start)
-                query_time = end - start
-
-                images = cursor.fetchall()
-
-                images_id = [id[0] for id in images]
-                
-                sql_get_images = f"SELECT * FROM metadata WHERE id IN {tuple(images_id)}"
-                cursor.execute(sql_get_images)
-                images_metadata = cursor.fetchall()
-
-                image_src = os.getenv('IMAGE_HOST')
-                images_path = []
-                for image in images_metadata:
-                    images_path.append(image_src + image[4].strip())
-
-                return jsonify({"images_path": images_path, "query_time": str(query_time)})
-
-            except Exception as e:
-                print(e)
-    
+        if action == 'getImages':
+            return get_images(sql_search_images)
+        
+        if action == 'getAnalysis':
+            return get_query_analysis(sql_search_images)
+        
     return "Nenhuma imagem recebida."
+    
 
 if __name__ == "__main__":
     app.run(debug = True)

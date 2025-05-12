@@ -16,7 +16,7 @@
         <div class="container">
             <div id="preview">
                 <p><strong>Imagem:</strong></p>
-                <img id="imagePreview" src="" alt="Pré-visualização" width="226" style="display: none;">
+                <img id="imagePreview" src="" alt="Pré-visualização" width="226" max-width="100%" style="display: none;">
             </div>
 
             <form method="POST" enctype="multipart/form-data" id="sendImage">
@@ -37,7 +37,13 @@
                 <select name="Pais" id="selectCountry">
                     <option value="" selected></option>
                 </select> </p>
-                <button type="submit" id="submitImage"> Enviar </button>
+                <p><label for="selectRegion">Regiao:</label>
+                <select name="Regiao" id="selectRegion">
+                    <option value="" selected></option>
+                </select> </p>
+                <p><label for="income">Renda:</label></p>
+                <button type="submit" id="getImages" name="getImages" value="getImages"> Obter Imagens </button>
+                <button type="submit" id="getAnalysis" name="getAnalysis" value="getAnalysis"> Analisar Consulta </button>
             </form>
         </div>
     </section>
@@ -54,31 +60,47 @@
 
     <script>
         $(document).ready(function() {
-            document.getElementById("submitImage").disabled = true; 
+            document.getElementById("getImages").disabled = true; 
+            document.getElementById("getAnalysis").disabled = true; 
             $.ajax({
                 type: 'GET',
-                url: '/countries',
+                url: '/metadata',
                 processData: false,  
                 contentType: false,
                 success: function(response) {
-                    response.data.forEach(pais => {
+                    response.countries.forEach(pais => {
                             
                         var resp = "<option value='"+pais+"'>"+pais+"</option>"
                         $("#selectCountry").append(resp);
                     });
-                    document.getElementById("submitImage").disabled = false; 
+                    response.regions.forEach(regiao => {
+                            
+                            var resp = "<option value='"+regiao+"'>"+regiao+"</option>"
+                            $("#selectRegion").append(resp);
+                        });
+                    document.getElementById("getImages").disabled = false; 
+                    document.getElementById("getAnalysis").disabled = false; 
                 }
             });
         });
+
+        $('#sendImage button[type=submit]').on('click', function () {
+            acao = $(this).val();
+        });
+
         $(document).on("submit", "#sendImage", function (e) {
             e.preventDefault();
             $("#images_list").empty();
-            document.getElementById("submitImage").disabled = true;
+            document.getElementById("getImages").disabled = true;
+            document.getElementById("getAnalysis").disabled = true; 
             document.getElementById("loader").style.display="block";
             
+            let form = document.getElementById('sendImage');
+            let formData = new FormData(form);
 
-            var formData = new FormData(this);
-
+            formData.append('acao', acao);
+            
+            console.log(formData)
             $.ajax({
                 type: "POST",
                 url: "/upload",
@@ -86,20 +108,26 @@
                 processData: false,  
                 contentType: false,  
                 success: function (response) {
-                    if (response.images_path.length === 0){
-                        var resp = "<p> Nenhuma imagem encontrada </p>"
-                        $("#image_list").append(resp);
+                    if (response.query_analysis){
+                        alert("Done!")
                     }
-                    else{
-                        $("#query_time_value").text(response.query_time);
-                        response.images_path.forEach(element => {
-                            console.log(element)
-                            
-                            var resp = "<img class='image_result' src= '"+element+"' width='240'>"
-                            $("#images_list").append(resp);
-                        });
-                    }     
-                    document.getElementById("submitImage").disabled = false;  
+                    if (response.images_path){
+                        if (response.images_path.length === 0){
+                            var resp = "<p> Nenhuma imagem encontrada </p>"
+                            $("#image_list").append(resp);
+                        }
+                        else{
+                            $("#query_time_value").text(response.query_time);
+                            response.images_path.forEach(element => {
+                                
+                                var resp = "<img class='image_result' src= '"+element+"' width='240'>"
+                                $("#images_list").append(resp);
+                            });
+                        }   
+                    }
+                      
+                    document.getElementById("getImages").disabled = false;  
+                    document.getElementById("getAnalysis").disabled = false; 
                     document.getElementById("loader").style.display = "none";             
                 },
             });
