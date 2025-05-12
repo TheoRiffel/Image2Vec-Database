@@ -44,6 +44,9 @@
     
     <section class="view">
         <h2> Resultado </h2>
+        <div id="query_time"> 
+            <p> Tempo de consulta: <span id="query_time_value"> </span> ms</p>
+        </div>
         <div class="loader" style="display: none;" id="loader"></div>
         <div id="images_list"> </div>
     </section>
@@ -83,17 +86,18 @@
                 processData: false,  
                 contentType: false,  
                 success: function (response) {
-                    if (response.res === "error"){
-                        $("#username-error").html(response.message)
+                    if (response.images_path.length === 0){
+                        var resp = "<p> Nenhuma imagem encontrada </p>"
+                        $("#image_list").append(resp);
                     }
                     else{
+                        $("#query_time_value").text(response.query_time);
                         response.images_path.forEach(element => {
                             console.log(element)
                             
                             var resp = "<img class='image_result' src= '"+element+"' width='240'>"
                             $("#images_list").append(resp);
                         });
-                        
                     }     
                     document.getElementById("submitImage").disabled = false;  
                     document.getElementById("loader").style.display = "none";             

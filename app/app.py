@@ -36,10 +36,10 @@ def get_countries():
 
 def build_query_array(operator, vector):
     distances = {
-        '<+>': ('SUM(ABS(a - b))', 'ASC'),
-        '<->': ('SQRT(SUM(POWER(a - b, 2)))', 'ASC'),
-        '<=>': ('1 - SUM(a * b) / (sqrt(SUM(a * a)) * sqrt(SUM(b * b)))', 'ASC'),
-        '<#>': ('SUM(a * b)', 'DESC'),
+        '<+>': ('SUM(ABS(a - b))', 'ASC'), # Manhattan
+        '<->': ('SQRT(SUM(POWER(a - b, 2)))', 'ASC'), # Euclidean
+        '<=>': ('1 - SUM(a * b) / (sqrt(SUM(a * a)) * sqrt(SUM(b * b)))', 'ASC'), # Cosine
+        '<#>': ('SUM(a * b)', 'DESC'), # Inner Product
     }
 
     vector_str = 'ARRAY[' + ', '.join(map(str, vector)) + ']'
@@ -93,6 +93,7 @@ def upload():
                 end = datetime.now()
 
                 print("Tempo de execução: ", end - start)
+                query_time = end - start
 
                 images = cursor.fetchall()
 
@@ -107,7 +108,7 @@ def upload():
                 for image in images_metadata:
                     images_path.append(image_src + image[4].strip())
 
-                return jsonify({"images_path": images_path})
+                return jsonify({"images_path": images_path, "query_time": str(query_time)})
 
             except Exception as e:
                 print(e)

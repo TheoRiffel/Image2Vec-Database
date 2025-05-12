@@ -31,6 +31,30 @@ def getEmbeddings(imgPath):
     return vector
 
 def insertImages(vectors, metadata):
+    cursor.execute("SELECT count(*) FROM metadata")
+    count = cursor.fetchone()[0]
+
+    if count == 0:
+        sql = '''INSERT INTO metadata (
+            id, 
+            country_name, 
+            country_id, 
+            region_id,
+            img_rel_path,
+            topics,
+            place,
+            income,
+            imagenet_synonyms,
+            imagenet_sysnet_id
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'''
+
+        try: 
+            cursor.executemany(sql, metadata)
+            conn.commit()
+            print("Inserted")
+        except Exception as e:
+            print(e)
+            
     cursor.execute("SELECT count(*) FROM img_pgvector")
     count = cursor.fetchone()[0]
     
@@ -58,29 +82,7 @@ def insertImages(vectors, metadata):
         except Exception as e:
             print(e)
     
-    cursor.execute("SELECT count(*) FROM metadata")
-    count = cursor.fetchone()[0]
-
-    if count == 0:
-        sql = '''INSERT INTO metadata (
-            id, 
-            country_name, 
-            country_id, 
-            region_id,
-            img_rel_path,
-            topics,
-            place,
-            income,
-            imagenet_synonyms,
-            imagenet_sysnet_id
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'''
-
-        try: 
-            cursor.executemany(sql, metadata)
-            conn.commit()
-            print("Inserted")
-        except Exception as e:
-            print(e)
+    
 
 def saveData(item, vectors, metadata):
     vectors.append((item['id'], item['vector']))
