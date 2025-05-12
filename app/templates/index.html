@@ -100,7 +100,6 @@
 
             formData.append('acao', acao);
             
-            console.log(formData)
             $.ajax({
                 type: "POST",
                 url: "/upload",
@@ -109,7 +108,11 @@
                 contentType: false,  
                 success: function (response) {
                     if (response.query_analysis){
-                        alert("Done!")
+                        console.log(response.query_analysis)
+                        response.query_analysis.forEach(element => {
+                                
+                        console.log(element[0])
+                        });
                     }
                     if (response.images_path){
                         if (response.images_path.length === 0){
