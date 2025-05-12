@@ -20,7 +20,7 @@ def get_countries():
     country_names = []
     with psycopg.connect(os.getenv('DB_URL')) as conn:
         cursor = conn.cursor()
-        sql_get_countries = f"SELECT DISTINCT(country_name) FROM metadata"
+        sql_get_countries = f"SELECT DISTINCT(country_name) FROM metadata ORDER BY country_name"
 
         try:
             cursor.execute(sql_get_countries)
@@ -58,12 +58,24 @@ def build_query_array(operator, vector):
 
     return sql_search_images
 
-def build_query_vector(operator, vector):
-    sql_search_images = f'''SELECT id 
-                            FROM img_pgvector 
-                            ORDER BY embedding {operator} '{vector}' 
-                            LIMIT 6
-                        ''' 
+def build_query_vector(operator, vector, metadata):
+    query_start = f'''SELECT img_pgvector.id
+                      FROM img_pgvector
+                '''
+
+    if len(metadata) != 0:
+        join_metadata = ' AND '.join(metadata)
+        query_start += f'''
+                      JOIN metadata ON metadata.id = img_pgvector.id
+                      WHERE {join_metadata}
+                    '''
+        
+        
+    query_end = f'''ORDER BY img_pgvector.embedding {operator} '{vector}' 
+                    LIMIT 6
+                ''' 
+                
+    sql_search_images = query_start + query_end
     
     return sql_search_images
 
@@ -82,10 +94,21 @@ def upload():
         with psycopg.connect(os.getenv('DB_URL')) as conn:
             cursor = conn.cursor()
             
-            sql_search_images = build_query_vector(operator, vector) \
+            metadata = []
+            if country != "":
+                metadata.append(f"country_name = '{country}'")
+                
+            sql_search_images = build_query_vector(operator, vector, metadata) \
                                 if table == 'img_pgvector'\
                                 else build_query_array(operator, vector)
-            
+                                
+            try:
+                explain_query = "EXPLAIN ANALYZE " + sql_search_images
+                cursor.execute(explain_query)
+                
+                print(cursor.fetchall())
+            except Exception as e:
+                print(e)
            
             try:
                 start = datetime.now()
