@@ -127,7 +127,7 @@ button[type="submit"]:disabled {
 }
 
 #query-analysis {
-    width: 100%;
+    width: 600px;
     text-align: left;
     max-width: 100%;
     overflow-wrap: break-word;
