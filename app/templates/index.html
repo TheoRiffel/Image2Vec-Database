@@ -46,8 +46,10 @@
                     <option value="" selected></option>
                 </select> </p>
                 <p><label for="income">Renda:</label>
-                <input type="text" id="amount" readonly style="border:0; color:#f6931f; font-weight:bold;"></p>
+                <input type="text" id="income" name="income" readonly style="border:0; color:#f6931f; font-weight:bold;"></p>
                 <div id="slider-range"></div>
+                <p><label for="useIndexes">Usar índices:</label>
+                <input type="checkbox" name="useIndexes" id="useIndexes" checked></p>
                 <button type="submit" id="getImages" name="getImages" value="getImages"> Obter Imagens </button>
                 <button type="submit" id="getAnalysis" name="getAnalysis" value="getAnalysis"> Analisar Consulta </button>
             </form>
@@ -65,22 +67,6 @@
     
 
     <script>
-        $(function () {
-            $("#slider-range").slider({
-                range: true,
-                min: 0,
-                max: 500,
-                values: [75, 300],
-                slide: function (event, ui) {
-                $("#amount").val("$" + ui.values[0] + " - $" + ui.values[1]);
-                }
-            });
-
-            $("#amount").val(
-                "$" + $("#slider-range").slider("values", 0) +
-                " - $" + $("#slider-range").slider("values", 1)
-            );
-        });
         $(document).ready(function() {
             document.getElementById("getImages").disabled = true; 
             document.getElementById("getAnalysis").disabled = true; 
@@ -102,17 +88,20 @@
                     const min_income = Number(response.min_income)
                     const max_income = Number(response.max_income)
 
+                    console.log(min_income)
+                    console.log(max_income)
+                    
                     $("#slider-range").slider({
                         range: true,
                         min: min_income,
                         max: max_income,
-                        values: [max_income/3 , max_income/2],
+                        values: [min_income , max_income],
                         slide: function (event, ui) {
-                        $("#amount").val("$" + ui.values[0] + " - $" + ui.values[1]);
+                        $("#income").val("$" + ui.values[0] + " - $" + ui.values[1]);
                         }
                     });
 
-                    $("#amount").val(
+                    $("#income").val(
                         "$" + $("#slider-range").slider("values", 0) +
                         " - $" + $("#slider-range").slider("values", 1)
                     );

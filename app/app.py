@@ -38,6 +38,7 @@ def get_metadata():
 
             cursor.execute(sql_get_income)
             min_income, max_income = cursor.fetchone()
+            print(min_income, max_income)
             
         except Exception as e:
             print(e)
@@ -45,7 +46,7 @@ def get_metadata():
     
     return jsonify({"countries": country_names, "regions": regions, "min_income": min_income, "max_income": max_income})
 
-def build_query_array(operator, vector):
+def build_query_array(operator, vector, metadata):
     distances = {
         '<+>': ('SUM(ABS(a - b))', 'ASC'), # Manhattan
         '<->': ('SQRT(SUM(POWER(a - b, 2)))', 'ASC'), # Euclidean
@@ -54,18 +55,26 @@ def build_query_array(operator, vector):
     }
 
     vector_str = 'ARRAY[' + ', '.join(map(str, vector)) + ']'
-    sql_search_images = \
-    f'''
-        SELECT id
-        FROM img_pgarray
-        ORDER BY (
-            SELECT {distances[operator][0]}
-            FROM unnest(embedding) WITH ORDINALITY AS t1(a, i)
-            JOIN unnest({vector_str}) WITH ORDINALITY AS t2(b, j)
-            ON i = j
-        ) {distances[operator][1]}
-        LIMIT 6;
-    '''
+
+    query_start = f'''SELECT img_pgarray.id
+                      FROM img_pgarray
+                '''
+    if len(metadata) != 0:
+        join_metadata = ' AND '.join(metadata)
+        query_start += f'''
+                      JOIN metadata ON metadata.id = img_pgarray.id
+                      WHERE {join_metadata}
+                    '''
+
+    query_end = f'''ORDER BY (
+                        SELECT {distances[operator][0]}
+                        FROM unnest(embedding) WITH ORDINALITY AS t1(a, i) 
+                        JOIN unnest({vector_str}) WITH ORDINALITY AS t2(b, j)
+                        ON i = j
+                    ) {distances[operator][1]}
+                    LIMIT 6;
+                '''
+    sql_search_images = query_start + query_end
 
     return sql_search_images
 
@@ -90,11 +99,17 @@ def build_query_vector(operator, vector, metadata):
     
     return sql_search_images
 
-def get_images(sql_search_images):
+def get_images(sql_search_images, indexes):
     with psycopg.connect(os.getenv('DB_URL')) as conn:
         cursor = conn.cursor()
                          
         try:
+            if indexes is None:
+                cursor.execute("BEGIN;")
+                cursor.execute("DROP INDEX IF EXISTS country_name_idx;")
+                cursor.execute("DROP INDEX IF EXISTS region_id_idx;")
+                cursor.execute("DROP INDEX IF EXISTS income_idx;")
+            
             start = datetime.now()
             cursor.execute(sql_search_images)
             end = datetime.now()
@@ -124,6 +139,9 @@ def get_images(sql_search_images):
             for image in images_metadata:
                 images_path.append(image_src + image[4].strip())
 
+            if indexes is None:
+                cursor.execute("ROLLBACK;")
+
             return jsonify({"images_path": images_path, "query_time": str(query_time)})
 
         except Exception as e:
@@ -131,15 +149,24 @@ def get_images(sql_search_images):
             return jsonify({"error": "erro"})
     
 
-def get_query_analysis(sql_search_images):
+def get_query_analysis(sql_search_images, indexes):
     with psycopg.connect(os.getenv('DB_URL')) as conn:
         cursor = conn.cursor()
               
         try:
+            if indexes is None:
+                cursor.execute("BEGIN;")
+                cursor.execute("DROP INDEX IF EXISTS country_name_idx;")
+                cursor.execute("DROP INDEX IF EXISTS region_id_idx;")
+                cursor.execute("DROP INDEX IF EXISTS income_idx;")
+            
             explain_query = "EXPLAIN ANALYZE " + sql_search_images
             cursor.execute(explain_query)
 
             analysis = cursor.fetchall()
+
+            if indexes is None:
+                cursor.execute("ROLLBACK;")
 
             #formatar a analise para enviar corretamente
             return jsonify({"query_analysis": analysis})
@@ -148,6 +175,13 @@ def get_query_analysis(sql_search_images):
             print(e)
            
 
+def format_income(income):
+    income = income.replace("$", "")
+    income = income.replace(" ", "")
+    min_income, max_income = income.split("-")
+
+    return [min_income, max_income]
+    
     
 
 @app.route('/upload', methods=['POST'])
@@ -158,7 +192,9 @@ def upload():
     table = request.form.get('Tabela')
     region = request.form.get('Regiao')
     action = request.form.get('acao')
-
+    income = format_income(request.form.get('income'))
+    indexes = request.form.get('useIndexes')
+    print("usar index: ", indexes)
     if file and file.filename != '':
         encoder = Encoder()
         vector = encoder.encode(file)
@@ -170,16 +206,21 @@ def upload():
             
         if region != "":
             metadata.append(f"region_id = '{region}'")
-                
+
+        if income != "":
+            metadata.append(f"income BETWEEN {income[0]} AND {income[1]}")
+
         sql_search_images = build_query_vector(operator, vector, metadata) \
                             if table == 'img_pgvector'\
-                            else build_query_array(operator, vector)
+                            else build_query_array(operator, vector, metadata)
 
+                
+        print(sql_search_images)
         if action == 'getImages':
-            return get_images(sql_search_images)
+            return get_images(sql_search_images, indexes)
         
         if action == 'getAnalysis':
-            return get_query_analysis(sql_search_images)
+            return get_query_analysis(sql_search_images, indexes)
         
     return "Nenhuma imagem recebida."
     
