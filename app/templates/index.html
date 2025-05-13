@@ -137,10 +137,19 @@
                 success: function (response) {
                     if (response.query_analysis){
                         console.log(response.query_analysis)
+                        
+                        const analysisDiv = $('<div>', { id: 'query-analysis' });
+                        const maxLength = 200;
                         response.query_analysis.forEach(element => {
-                                
-                        console.log(element[0])
+                            const text = element[0].replace(/(\r\n|\n|\r)/gm,"");
+                            const isLong = text.length > maxLength;
+                            const shortText = text.slice(0, maxLength);
+
+                            const p = $('<p>').text(isLong ? shortText + '...' : text).addClass('collapsible');
+
+                            analysisDiv.append(p)
                         });
+                        $("#result").append(analysisDiv);
                     }
 
                     if (response.error){

@@ -121,3 +121,24 @@ button[type="submit"]:disabled {
 #slider-range {
     width: 100%;
 }
+
+#result {
+    width: 100%;
+}
+
+#query-analysis {
+    width: 100%;
+    text-align: left;
+    max-width: 100%;
+    overflow-wrap: break-word;
+    white-space: normal;
+}
+
+.analysis-item {
+    white-space: pre-wrap;
+}
+
+.collapsible {
+    white-space: pre-wrap;
+    margin-bottom: 8px;
+}
