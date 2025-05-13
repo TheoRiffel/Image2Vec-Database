@@ -21,7 +21,9 @@ def get_metadata():
     regions = []
     with psycopg.connect(os.getenv('DB_URL')) as conn:
         cursor = conn.cursor()
-        sql_get_countries = f"SELECT DISTINCT(country_name) FROM metadata ORDER BY country_name"
+        sql_get_countries = "SELECT DISTINCT(country_name) FROM metadata ORDER BY country_name"
+        sql_get_regions = "SELECT DISTINCT(region_id) FROM metadata ORDER BY region_id"
+        sql_get_income = "SELECT min(income), max(income) FROM metadata"
 
         try:
             cursor.execute(sql_get_countries)
@@ -29,21 +31,19 @@ def get_metadata():
 
             country_names = [country_name[0] for country_name in countries]
             
-        except Exception as e:
-            print(e)
-        
-        sql_get_regions = f"SELECT DISTINCT(region_id) FROM metadata ORDER BY region_id"
-
-        try:
             cursor.execute(sql_get_regions)
             region_ids = cursor.fetchall()
 
             regions = [region_id[0] for region_id in region_ids]
+
+            cursor.execute(sql_get_income)
+            min_income, max_income = cursor.fetchone()
             
         except Exception as e:
             print(e)
+            jsonify({"error": "Erro na base de dados!"})
     
-    return jsonify({"countries": country_names, "regions": regions})
+    return jsonify({"countries": country_names, "regions": regions, "min_income": min_income, "max_income": max_income})
 
 def build_query_array(operator, vector):
     distances = {
@@ -105,9 +105,18 @@ def get_images(sql_search_images):
             images = cursor.fetchall()
 
             images_id = [id[0] for id in images]
-                
-            sql_get_images = f"SELECT * FROM metadata WHERE id IN {tuple(images_id)}"
-            cursor.execute(sql_get_images)
+
+            if len(images_id) == 0:
+                return jsonify({"error": "Nenhuma imagem encontrada!"})
+            
+            images_id_format = tuple(images_id)
+
+            params = ['%s'] * len(images_id)
+            params_str = ','.join(params)
+
+            sql_get_images = f"SELECT * FROM metadata WHERE id IN ({params_str})"
+
+            cursor.execute(sql_get_images, images_id_format)
             images_metadata = cursor.fetchall()
 
             image_src = os.getenv('IMAGE_HOST')
@@ -119,6 +128,7 @@ def get_images(sql_search_images):
 
         except Exception as e:
             print(e)
+            return jsonify({"error": "erro"})
     
 
 def get_query_analysis(sql_search_images):
@@ -148,8 +158,7 @@ def upload():
     table = request.form.get('Tabela')
     region = request.form.get('Regiao')
     action = request.form.get('acao')
-    
-    print(action)
+
     if file and file.filename != '':
         encoder = Encoder()
         vector = encoder.encode(file)

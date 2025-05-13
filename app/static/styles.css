@@ -117,3 +117,7 @@ button[type="submit"]:disabled {
     gap: 16px;
     
 }
+
+#slider-range {
+    width: 100%;
+}

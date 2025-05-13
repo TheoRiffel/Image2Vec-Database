@@ -7,6 +7,10 @@
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
     <link rel="stylesheet" href={{ url_for("static", filename = '/styles.css') }}>
     <title>Image Search</title>
 </head>
@@ -41,7 +45,9 @@
                 <select name="Regiao" id="selectRegion">
                     <option value="" selected></option>
                 </select> </p>
-                <p><label for="income">Renda:</label></p>
+                <p><label for="income">Renda:</label>
+                <input type="text" id="amount" readonly style="border:0; color:#f6931f; font-weight:bold;"></p>
+                <div id="slider-range"></div>
                 <button type="submit" id="getImages" name="getImages" value="getImages"> Obter Imagens </button>
                 <button type="submit" id="getAnalysis" name="getAnalysis" value="getAnalysis"> Analisar Consulta </button>
             </form>
@@ -50,15 +56,31 @@
     
     <section class="view">
         <h2> Resultado </h2>
-        <div id="query_time"> 
-            <p> Tempo de consulta: <span id="query_time_value"> </span> s</p>
+        <div id="result"> 
         </div>
         <div class="loader" style="display: none;" id="loader"></div>
-        <div id="images_list"> </div>
+        <div id="images_list">         
+        </div>
     </section>
     
 
     <script>
+        $(function () {
+            $("#slider-range").slider({
+                range: true,
+                min: 0,
+                max: 500,
+                values: [75, 300],
+                slide: function (event, ui) {
+                $("#amount").val("$" + ui.values[0] + " - $" + ui.values[1]);
+                }
+            });
+
+            $("#amount").val(
+                "$" + $("#slider-range").slider("values", 0) +
+                " - $" + $("#slider-range").slider("values", 1)
+            );
+        });
         $(document).ready(function() {
             document.getElementById("getImages").disabled = true; 
             document.getElementById("getAnalysis").disabled = true; 
@@ -69,15 +91,31 @@
                 contentType: false,
                 success: function(response) {
                     response.countries.forEach(pais => {
-                            
                         var resp = "<option value='"+pais+"'>"+pais+"</option>"
                         $("#selectCountry").append(resp);
                     });
                     response.regions.forEach(regiao => {
-                            
-                            var resp = "<option value='"+regiao+"'>"+regiao+"</option>"
-                            $("#selectRegion").append(resp);
-                        });
+                        var resp = "<option value='"+regiao+"'>"+regiao+"</option>"
+                        $("#selectRegion").append(resp);
+                    });
+
+                    const min_income = Number(response.min_income)
+                    const max_income = Number(response.max_income)
+
+                    $("#slider-range").slider({
+                        range: true,
+                        min: min_income,
+                        max: max_income,
+                        values: [max_income/3 , max_income/2],
+                        slide: function (event, ui) {
+                        $("#amount").val("$" + ui.values[0] + " - $" + ui.values[1]);
+                        }
+                    });
+
+                    $("#amount").val(
+                        "$" + $("#slider-range").slider("values", 0) +
+                        " - $" + $("#slider-range").slider("values", 1)
+                    );
                     document.getElementById("getImages").disabled = false; 
                     document.getElementById("getAnalysis").disabled = false; 
                 }
@@ -91,6 +129,7 @@
         $(document).on("submit", "#sendImage", function (e) {
             e.preventDefault();
             $("#images_list").empty();
+            $("#result").empty();
             document.getElementById("getImages").disabled = true;
             document.getElementById("getAnalysis").disabled = true; 
             document.getElementById("loader").style.display="block";
@@ -114,20 +153,21 @@
                         console.log(element[0])
                         });
                     }
-                    if (response.images_path){
-                        if (response.images_path.length === 0){
-                            var resp = "<p> Nenhuma imagem encontrada </p>"
-                            $("#image_list").append(resp);
-                        }
-                        else{
-                            $("#query_time_value").text(response.query_time);
-                            response.images_path.forEach(element => {
-                                
-                                var resp = "<img class='image_result' src= '"+element+"' width='240'>"
-                                $("#images_list").append(resp);
-                            });
-                        }   
+
+                    if (response.error){
+                        var resp = "<p> <span id='notFound'> <strong> "+response.error+"</strong> </span> </p>"
+                        $("#result").html(resp);
                     }
+                    else if (response.images_path){
+                        var result = "<p> Tempo de consulta: <span id='query_time_value'>" + response.query_time +"</span> s</p>"
+                        $("#result").html(result);
+                        response.images_path.forEach(element => {
+                                
+                            var resp = "<img class='image_result' src= '"+element+"' width='240'>"
+                            $("#images_list").append(resp);
+                        });
+                    }   
+                    
                       
                     document.getElementById("getImages").disabled = false;  
                     document.getElementById("getAnalysis").disabled = false; 
