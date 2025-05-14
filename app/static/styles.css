@@ -97,6 +97,13 @@ button[type="submit"]:disabled {
     flex-wrap: wrap;
 }
 
+.image_result{
+    padding: 4px;
+    border: 1px solid black;
+    border-radius: 4px;
+    text-align: left;
+}
+
 #preview{
     display: flex;
     align-items: center;
@@ -127,7 +134,7 @@ button[type="submit"]:disabled {
 }
 
 #query-analysis {
-    width: 600px;
+    width: 650px;
     text-align: left;
     max-width: 100%;
     overflow-wrap: break-word;

@@ -156,12 +156,23 @@
                         var resp = "<p> <span id='notFound'> <strong> "+response.error+"</strong> </span> </p>"
                         $("#result").html(resp);
                     }
-                    else if (response.images_path){
+                    else if (response.images_metadata){
                         var result = "<p> Tempo de consulta: <span id='query_time_value'>" + response.query_time +"</span> s</p>"
                         $("#result").html(result);
-                        response.images_path.forEach(element => {
-                                
-                            var resp = "<img class='image_result' src= '"+element+"' width='240'>"
+                        response.images_metadata.forEach(element => {
+                            console.log(element.image_path)
+                            
+                            const resp = `
+                            <div class= 'image_result'>
+                                <img src= '${element.image_path}' width='240'>
+                                <p> <b>País: </b>${element.image_country} </p>
+                                <p> <b>Renda: </b>${element.image_income} </p>
+                                <p> <b>Sinonimos: </b>${element.image_synonyms} </p>
+                                <p> <b>Distância: </b> ${element.image_distance}</p>
+                            </div>
+                            `
+
+
                             $("#images_list").append(resp);
                         });
                     }   
