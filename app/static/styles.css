@@ -129,23 +129,29 @@ button[type="submit"]:disabled {
     width: 100%;
 }
 
-#result {
-    width: 100%;
-}
-
 #query-analysis {
-    width: 650px;
+    width: 700px;
     text-align: left;
     max-width: 100%;
     overflow-wrap: break-word;
     white-space: normal;
+    background-color: #e0e0e0;
+    border: 2px solid black;
+    box-sizing: border-box;
+    padding: 10px;
 }
 
 .analysis-item {
     white-space: pre-wrap;
+    color: blue;
 }
 
-.collapsible {
-    white-space: pre-wrap;
-    margin-bottom: 8px;
+.analysis-header {
+    color: blue;
+    text-align: center;
+    font-weight: bold;
+    font-size: large;
+    border-bottom: 2px dashed blue;
+    padding-bottom: 5px;
+    margin-bottom: 10px;
 }
