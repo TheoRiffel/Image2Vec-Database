@@ -22,9 +22,27 @@ CREATE TABLE IF NOT EXISTS img_pgvector (
         ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS img_pgvector_clip (
+    id character(24) PRIMARY KEY,
+    embedding vector(768),
+    CONSTRAINT metadata_id_fkey
+        FOREIGN KEY (id)
+        REFERENCES metadata (id)
+        ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS img_pgarray (
     id character(24) PRIMARY KEY,
     embedding float8[],
+    CONSTRAINT metadata_id_fkey
+        FOREIGN KEY (id)
+        REFERENCES metadata (id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS img_pgarray_clip (
+    id character(24) PRIMARY KEY,
+    embedding vector(768),
     CONSTRAINT metadata_id_fkey
         FOREIGN KEY (id)
         REFERENCES metadata (id)

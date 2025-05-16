@@ -24,7 +24,17 @@ def getEmbeddings(imgPath):
     img_path = BytesIO(response.content)
     
     vector = encoder.encode(img_path)
-    vector = vector.tolist()
+
+    print("Embedding completed!")
+
+    return vector
+
+def getEmbeddings_clip(imgPath):
+    base = os.getenv('IMAGE_HOST')
+    response = requests.get(base+imgPath)
+    img_path = BytesIO(response.content)
+    
+    vector = encoder.encode_clip(img_path)
 
     print("Embedding completed!")
 
@@ -81,11 +91,37 @@ def insertImages(vectors, metadata):
             print("Inserted")
         except Exception as e:
             print(e)
-    
-    
 
-def saveData(item, vectors, metadata):
+    cursor.execute("SELECT count(*) FROM img_pgvector_clip")
+    count = cursor.fetchone()[0]
+    
+    if count == 0:
+        sql = "INSERT INTO img_pgvector_clip (id, embedding) VALUES (%s, %s)"
+
+        try:
+            cursor.executemany(sql, vectors)
+            conn.commit()
+            print("Inserted")
+        except Exception as e:
+            print(e)
+    
+    cursor.execute("SELECT count(*) FROM img_pgarray_clip")
+    count = cursor.fetchone()[0]
+    
+    if count == 0:
+        sql = "INSERT INTO img_pgarray_clip (id, embedding) VALUES (%s, %s)"
+
+        vectors_pg = [(vid, json.loads(vec)) for vid, vec in vectors]
+        try:
+            cursor.executemany(sql, vectors_pg)
+            conn.commit()
+            print("Inserted")
+        except Exception as e:
+            print(e)
+
+def saveData(item, vectors, vectors_clip, metadata):
     vectors.append((item['id'], item['vector']))
+    vectors_clip.append((item['id'], item['vector_clip']))
     metadata.append((item['id'], 
                     item['country.name'], 
                     item['country.id'], 
@@ -115,12 +151,17 @@ if __name__ == "__main__":
     df = pd.read_csv("dollar_street_test.csv")
     if 'vector' not in df.columns:
         df['vector'] = df['imageRelPath'].apply(getEmbeddings)
-        df.to_csv("dollar_street_test.csv", index=False)
+
+    if 'vector_clip' not in df.columns:
+        df['vector_clip'] = df['imageRelPath'].apply(getEmbeddings_clip)
+
+    df.to_csv("dollar_street_test.csv", index=False)
 
     vectors = []
+    vectors_clip = []
     metadata = []
 
-    df.apply(lambda item: saveData(item, vectors, metadata), axis=1)
+    df.apply(lambda item: saveData(item, vectors, vectors_clip, metadata), axis=1)
 
     insertImages(vectors, metadata)
 
