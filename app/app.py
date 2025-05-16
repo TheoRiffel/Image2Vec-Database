@@ -56,17 +56,19 @@ def build_query_array(operator, vector, metadata):
 
     vector_str = 'ARRAY[' + ', '.join(map(str, vector)) + ']'
 
-    query_start = f'''SELECT img_pgarray.id
-                      FROM img_pgarray
+    query_start = f'''
+                    SELECT img_pgarray.id
+                    FROM img_pgarray
                 '''
     if len(metadata) != 0:
         join_metadata = ' AND '.join(metadata)
         query_start += f'''
-                      JOIN metadata ON metadata.id = img_pgarray.id
-                      WHERE {join_metadata}
+                    JOIN metadata ON metadata.id = img_pgarray.id
+                    WHERE {join_metadata}
                     '''
 
-    query_end = f'''ORDER BY (
+    query_end = f'''
+                    ORDER BY (
                         SELECT {distances[operator][0]}
                         FROM unnest(embedding) WITH ORDINALITY AS t1(a, i) 
                         JOIN unnest({vector_str}) WITH ORDINALITY AS t2(b, j)
@@ -79,19 +81,22 @@ def build_query_array(operator, vector, metadata):
     return sql_search_images
 
 def build_query_vector(operator, vector, metadata):
-    query_start = f'''SELECT img_pgvector.id
-                      FROM img_pgvector
+    query_start = f'''
+                    SELECT img_pgvector.id,
+                           img_pgvector.embedding {operator} '{vector}' 
+                    FROM img_pgvector
                 '''
 
     if len(metadata) != 0:
         join_metadata = ' AND '.join(metadata)
         query_start += f'''
-                      JOIN metadata ON metadata.id = img_pgvector.id
-                      WHERE {join_metadata}
+                    JOIN metadata ON metadata.id = img_pgvector.id
+                    WHERE {join_metadata}
                     '''
         
         
-    query_end = f'''ORDER BY img_pgvector.embedding {operator} '{vector}' 
+    query_end = f'''
+                    ORDER BY img_pgvector.embedding {operator} '{vector}' 
                     LIMIT 6
                 ''' 
                 
@@ -119,7 +124,9 @@ def get_images(sql_search_images, indexes):
 
             images = cursor.fetchall()
 
-            images_id = [id[0] for id in images]
+            print(images)
+            images_id = [image[0] for image in images]
+            images_dist = [image[1] for image in images]
 
             if len(images_id) == 0:
                 return jsonify({"error": "Nenhuma imagem encontrada!"})
@@ -129,20 +136,35 @@ def get_images(sql_search_images, indexes):
             params = ['%s'] * len(images_id)
             params_str = ','.join(params)
 
-            sql_get_images = f"SELECT * FROM metadata WHERE id IN ({params_str})"
+            sql_get_images = f'''SELECT metadata.img_rel_path,
+                                        metadata.country_name, 
+                                        metadata.income, 
+                                        metadata.imagenet_synonyms 
+                                 FROM metadata 
+                                 WHERE id IN ({params_str})'''
 
             cursor.execute(sql_get_images, images_id_format)
             images_metadata = cursor.fetchall()
 
             image_src = os.getenv('IMAGE_HOST')
-            images_path = []
-            for image in images_metadata:
-                images_path.append(image_src + image[4].strip())
+
+            images_metadata_formatted = [
+                {
+                    "image_path": image_src + image[0].strip(),
+                    "image_country": image[1],
+                    "image_income": float(image[2]),
+                    "image_synonyms": image[3],
+                    "image_distance": round(dist, 10)
+                }
+                for image, dist in zip(images_metadata, images_dist)
+            ]
+
+            print(images_metadata_formatted)
 
             if indexes is None:
                 cursor.execute("ROLLBACK;")
-
-            return jsonify({"images_path": images_path, "query_time": str(query_time)})
+        
+            return jsonify({"images_metadata": images_metadata_formatted, "query_time": str(query_time)})
 
         except Exception as e:
             print(e)

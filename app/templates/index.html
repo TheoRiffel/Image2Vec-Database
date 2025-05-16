@@ -139,15 +139,28 @@
                         console.log(response.query_analysis)
                         
                         const analysisDiv = $('<div>', { id: 'query-analysis' });
+                        analysisDiv.append($('<p>').text("PLANO DE CONSULTA").addClass('analysis-header'))
+
                         const maxLength = 200;
                         response.query_analysis.forEach(element => {
                             const text = element[0].replace(/(\r\n|\n|\r)/gm,"");
                             const isLong = text.length > maxLength;
-                            const shortText = text.slice(0, maxLength);
+                            
+                            const displayText = isLong ? text.slice(0, maxLength) + '...' : text;
 
-                            const p = $('<p>').text(isLong ? shortText + '...' : text).addClass('collapsible');
+                            // Try to match pattern: "some text (other text)"
+                            const match = displayText.match(/^([^()]+)\((.*)\)$/);
+                            const p = $('<p>').addClass('analysis-item');
 
-                            analysisDiv.append(p)
+                            if (match) {
+                                const boldPart = match[1];
+                                const restPart = match[2];
+                                p.html(`<strong>${boldPart}</strong> (${restPart})`);
+                            } else {
+                                p.text(displayText);
+                            }
+
+                            analysisDiv.append(p);
                         });
                         $("#result").append(analysisDiv);
                     }
@@ -156,12 +169,23 @@
                         var resp = "<p> <span id='notFound'> <strong> "+response.error+"</strong> </span> </p>"
                         $("#result").html(resp);
                     }
-                    else if (response.images_path){
+                    else if (response.images_metadata){
                         var result = "<p> Tempo de consulta: <span id='query_time_value'>" + response.query_time +"</span> s</p>"
                         $("#result").html(result);
-                        response.images_path.forEach(element => {
-                                
-                            var resp = "<img class='image_result' src= '"+element+"' width='240'>"
+                        response.images_metadata.forEach(element => {
+                            console.log(element.image_path)
+                            
+                            const resp = `
+                            <div class= 'image_result'>
+                                <img src= '${element.image_path}' width='240'>
+                                <p> <b>País: </b>${element.image_country} </p>
+                                <p> <b>Renda: </b>${element.image_income} </p>
+                                <p> <b>Sinonimos: </b>${element.image_synonyms} </p>
+                                <p> <b>Distância: </b> ${element.image_distance}</p>
+                            </div>
+                            `
+
+
                             $("#images_list").append(resp);
                         });
                     }   
