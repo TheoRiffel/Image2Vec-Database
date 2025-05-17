@@ -36,11 +36,11 @@ def getEmbeddings_clip(imgPath):
     
     vector = encoder.encode_clip(img_path)
 
-    print("Embedding completed!")
+    print("Embedding clip completed!")
 
     return vector
 
-def insertImages(vectors, metadata):
+def insertImages(vectors, vectors_clip, metadata):
     cursor.execute("SELECT count(*) FROM metadata")
     count = cursor.fetchone()[0]
 
@@ -99,7 +99,7 @@ def insertImages(vectors, metadata):
         sql = "INSERT INTO img_pgvector_clip (id, embedding) VALUES (%s, %s)"
 
         try:
-            cursor.executemany(sql, vectors)
+            cursor.executemany(sql, vectors_clip)
             conn.commit()
             print("Inserted")
         except Exception as e:
@@ -111,7 +111,7 @@ def insertImages(vectors, metadata):
     if count == 0:
         sql = "INSERT INTO img_pgarray_clip (id, embedding) VALUES (%s, %s)"
 
-        vectors_pg = [(vid, json.loads(vec)) for vid, vec in vectors]
+        vectors_pg = [(vid, json.loads(vec)) for vid, vec in vectors_clip]
         try:
             cursor.executemany(sql, vectors_pg)
             conn.commit()
@@ -151,11 +151,13 @@ if __name__ == "__main__":
     df = pd.read_csv("dollar_street_test.csv")
     if 'vector' not in df.columns:
         df['vector'] = df['imageRelPath'].apply(getEmbeddings)
+        df.to_csv("dollar_street_test.csv", index=False)
+    print("Embeddings normal completed!")
 
     if 'vector_clip' not in df.columns:
         df['vector_clip'] = df['imageRelPath'].apply(getEmbeddings_clip)
-
-    df.to_csv("dollar_street_test.csv", index=False)
+        df.to_csv("dollar_street_test.csv", index=False)
+    print("Embeddings clip completed!")
 
     vectors = []
     vectors_clip = []
@@ -163,6 +165,6 @@ if __name__ == "__main__":
 
     df.apply(lambda item: saveData(item, vectors, vectors_clip, metadata), axis=1)
 
-    insertImages(vectors, metadata)
+    insertImages(vectors, vectors_clip, metadata)
 
     conn.close()
