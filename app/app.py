@@ -57,13 +57,8 @@ def build_query_array(table, operator, vector, metadata):
     vector_str = 'ARRAY[' + ', '.join(map(str, vector)) + ']'
 
     query_start = f'''
-                    SELECT arrays.id,
-                           {distances[operator][0]} AS dist
+                    SELECT arrays.id
                     FROM {table} arrays
-                    JOIN LATERAL unnest(arrays.embedding) WITH ORDINALITY AS t1(a, i)
-                    ON TRUE
-                    JOIN unnest({vector_str}) WITH ORDINALITY AS t2(b, j)
-                    ON i = j
                 '''
     
     if len(metadata) != 0:
@@ -74,8 +69,12 @@ def build_query_array(table, operator, vector, metadata):
                     '''
 
     query_end = f'''
-                    GROUP BY arrays.id
-                    ORDER BY dist {distances[operator][1]}
+                    ORDER BY (
+                        SELECT {distances[operator][0]}
+                        FROM unnest(embedding) WITH ORDINALITY AS t1(a, i) 
+                        JOIN unnest({vector_str}) WITH ORDINALITY AS t2(b, j)
+                        ON i = j
+                    ) {distances[operator][1]}
                     LIMIT 6;
                 '''
 
@@ -116,8 +115,10 @@ def get_images(sql_search_images, indexes):
                 cursor.execute("DROP INDEX IF EXISTS country_name_idx;")
                 cursor.execute("DROP INDEX IF EXISTS region_id_idx;")
                 cursor.execute("DROP INDEX IF EXISTS income_idx;")
-                cursor.execute("DROP INDEX IF EXISTS hnsw_idx;")
-                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_cosine;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_l1;")
+                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_l2;")
+                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_ip;")
             
             start = datetime.now()
             cursor.execute(sql_search_images)
@@ -128,9 +129,9 @@ def get_images(sql_search_images, indexes):
 
             images = cursor.fetchall()
 
-            print(images)
+            print(len(images[0]))
             images_id = [image[0] for image in images]
-            images_dist = [image[1] for image in images]
+            images_dist = [str(image[1]) for image in images] if len(images[0]) > 1 else [''] * 6
 
             if len(images_id) == 0:
                 return jsonify({"error": "Nenhuma imagem encontrada!"})
@@ -158,7 +159,7 @@ def get_images(sql_search_images, indexes):
                     "image_country": image[1],
                     "image_income": float(image[2]),
                     "image_synonyms": image[3],
-                    "image_distance": round(dist, 10)
+                    "image_distance": dist[0:18]
                 }
                 for image, dist in zip(images_metadata, images_dist)
             ]
@@ -185,8 +186,10 @@ def get_query_analysis(sql_search_images, indexes):
                 cursor.execute("DROP INDEX IF EXISTS country_name_idx;")
                 cursor.execute("DROP INDEX IF EXISTS region_id_idx;")
                 cursor.execute("DROP INDEX IF EXISTS income_idx;")
-                cursor.execute("DROP INDEX IF EXISTS hnsw_idx;")
-                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_cosine;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_l1;")
+                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_l2;")
+                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_ip;")
 
             
             explain_query = "EXPLAIN ANALYZE " + sql_search_images
@@ -243,7 +246,6 @@ def upload():
                             else build_query_array(table, operator, vector, metadata)
 
                 
-        print(sql_search_images)
         if action == 'get-images':
             return get_images(sql_search_images, indexes)
         
