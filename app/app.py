@@ -220,7 +220,6 @@ def upload():
     if file and file.filename != '':
         encoder = Encoder()
         vector = encoder.encode(file)
-        vector = vector.tolist()
 
         metadata = []
         if country != "":
