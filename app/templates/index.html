@@ -20,38 +20,40 @@
         <div class="container">
             <div id="preview">
                 <p><strong>Imagem:</strong></p>
-                <img id="imagePreview" src="" alt="Pré-visualização" width="226" max-width="100%" style="display: none;">
+                <img id="image-preview" src="" alt="Pré-visualização" width="226" max-width="100%" style="display: none;">
             </div>
 
-            <form method="POST" enctype="multipart/form-data" id="sendImage">
-                <input type="file" name="image" id="inputImage" accept="image/*" capture="environment" required><br>
-                <p><label for="selectTabela">Tabela:</label>
-                <select name="Tabela" id="selectTabela">
+            <form method="POST" enctype="multipart/form-data" id="send-image">
+                <input type="file" name="image" id="input-image" accept="image/*" capture="environment" required><br>
+                <p><label for="select-tabela">Tabela:</label>
+                <select name="tabela" id="select-tabela">
                     <option value="img_pgvector">pgvector</option>
                     <option value="img_pgarray">array</option>
+                    <option value="img_pgvector_clip">pgvector_clip</option>
+                    <option value="img_pgarray_clip">array_clip</option>
                 </select> </p>
-                <p><label for="selectOperador">Operador:</label>
-                <select name="Operador" id="selectOperador">
+                <p><label for="select-operador">Operador:</label>
+                <select name="operador" id="select-operador">
                     <option value="<+>">L1</option>
                     <option value="<->">L2</option>
                     <option value="<=>" selected>Cosine</option>
                     <option value="<#>">Inner product</option>
                 </select> </p>
-                <p><label for="selectCountry">Pais:</label>
-                <select name="Pais" id="selectCountry">
+                <p><label for="select-country">Pais:</label>
+                <select name="pais" id="select-country">
                     <option value="" selected></option>
                 </select> </p>
-                <p><label for="selectRegion">Regiao:</label>
-                <select name="Regiao" id="selectRegion">
+                <p><label for="select-region">Regiao:</label>
+                <select name="regiao" id="select-region">
                     <option value="" selected></option>
                 </select> </p>
                 <p><label for="income">Renda:</label>
-                <input type="text" id="income" name="income" readonly style="border:0; color:#f6931f; font-weight:bold;"></p>
+                <input type="text" id="income" name="income" readonly></p>
                 <div id="slider-range"></div>
-                <p><label for="useIndexes">Usar índices:</label>
-                <input type="checkbox" name="useIndexes" id="useIndexes" checked></p>
-                <button type="submit" id="getImages" name="getImages" value="getImages"> Obter Imagens </button>
-                <button type="submit" id="getAnalysis" name="getAnalysis" value="getAnalysis"> Analisar Consulta </button>
+                <p><label for="use-indexes">Usar índices:</label>
+                <input type="checkbox" name="use-indexes" id="use-indexes" checked></p>
+                <button type="submit" id="get-images" name="get-images" value="get-images"> Obter Imagens </button>
+                <button type="submit" id="get-analysis" name="get-analysis" value="get-analysis"> Analisar Consulta </button>
             </form>
         </div>
     </section>
@@ -61,15 +63,15 @@
         <div id="result"> 
         </div>
         <div class="loader" style="display: none;" id="loader"></div>
-        <div id="images_list">         
+        <div id="images-list">         
         </div>
     </section>
     
 
     <script>
         $(document).ready(function() {
-            document.getElementById("getImages").disabled = true; 
-            document.getElementById("getAnalysis").disabled = true; 
+            document.getElementById("get-images").disabled = true; 
+            document.getElementById("get-analysis").disabled = true; 
             $.ajax({
                 type: 'GET',
                 url: '/metadata',
@@ -78,11 +80,11 @@
                 success: function(response) {
                     response.countries.forEach(pais => {
                         var resp = "<option value='"+pais+"'>"+pais+"</option>"
-                        $("#selectCountry").append(resp);
+                        $("#select-country").append(resp);
                     });
                     response.regions.forEach(regiao => {
                         var resp = "<option value='"+regiao+"'>"+regiao+"</option>"
-                        $("#selectRegion").append(resp);
+                        $("#select-region").append(resp);
                     });
 
                     const min_income = Number(response.min_income)
@@ -105,25 +107,25 @@
                         "$" + $("#slider-range").slider("values", 0) +
                         " - $" + $("#slider-range").slider("values", 1)
                     );
-                    document.getElementById("getImages").disabled = false; 
-                    document.getElementById("getAnalysis").disabled = false; 
+                    document.getElementById("get-images").disabled = false; 
+                    document.getElementById("get-analysis").disabled = false; 
                 }
             });
         });
 
-        $('#sendImage button[type=submit]').on('click', function () {
+        $('#send-image button[type=submit]').on('click', function () {
             acao = $(this).val();
         });
 
-        $(document).on("submit", "#sendImage", function (e) {
+        $(document).on("submit", "#send-image", function (e) {
             e.preventDefault();
-            $("#images_list").empty();
+            $("#images-list").empty();
             $("#result").empty();
-            document.getElementById("getImages").disabled = true;
-            document.getElementById("getAnalysis").disabled = true; 
+            document.getElementById("get-images").disabled = true;
+            document.getElementById("get-analysis").disabled = true; 
             document.getElementById("loader").style.display="block";
             
-            let form = document.getElementById('sendImage');
+            let form = document.getElementById('send-image');
             let formData = new FormData(form);
 
             formData.append('acao', acao);
@@ -170,13 +172,13 @@
                         $("#result").html(resp);
                     }
                     else if (response.images_metadata){
-                        var result = "<p> Tempo de consulta: <span id='query_time_value'>" + response.query_time +"</span> s</p>"
+                        var result = "<p> Tempo de consulta: <span id='query-time-value'>" + response.query_time +"</span> s</p>"
                         $("#result").html(result);
                         response.images_metadata.forEach(element => {
                             console.log(element.image_path)
                             
                             const resp = `
-                            <div class= 'image_result'>
+                            <div class= 'image-result'>
                                 <img src= '${element.image_path}' width='240'>
                                 <p> <b>País: </b>${element.image_country} </p>
                                 <p> <b>Renda: </b>${element.image_income} </p>
@@ -186,21 +188,21 @@
                             `
 
 
-                            $("#images_list").append(resp);
+                            $("#images-list").append(resp);
                         });
                     }   
                     
                       
-                    document.getElementById("getImages").disabled = false;  
-                    document.getElementById("getAnalysis").disabled = false; 
+                    document.getElementById("get-images").disabled = false;  
+                    document.getElementById("get-analysis").disabled = false; 
                     document.getElementById("loader").style.display = "none";             
                 },
             });
 
         });
 
-        $(document).on("change", "#inputImage", function () {
-            const imagemPreview = document.getElementById('imagePreview');
+        $(document).on("change", "#input-image", function () {
+            const imagemPreview = document.getElementById('image-preview');
 
             const file = this.files[0];
             if (file) {

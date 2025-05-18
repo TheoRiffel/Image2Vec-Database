@@ -46,7 +46,7 @@ def get_metadata():
     
     return jsonify({"countries": country_names, "regions": regions, "min_income": min_income, "max_income": max_income})
 
-def build_query_array(operator, vector, metadata):
+def build_query_array(table, operator, vector, metadata):
     distances = {
         '<+>': ('SUM(ABS(a - b))', 'ASC'), # Manhattan
         '<->': ('SQRT(SUM(POWER(a - b, 2)))', 'ASC'), # Euclidean
@@ -57,13 +57,13 @@ def build_query_array(operator, vector, metadata):
     vector_str = 'ARRAY[' + ', '.join(map(str, vector)) + ']'
 
     query_start = f'''
-                    SELECT img_pgarray.id
-                    FROM img_pgarray
+                    SELECT arrays.id
+                    FROM {table} arrays
                 '''
     if len(metadata) != 0:
         join_metadata = ' AND '.join(metadata)
         query_start += f'''
-                    JOIN metadata ON metadata.id = img_pgarray.id
+                    JOIN metadata ON metadata.id = arrays.id
                     WHERE {join_metadata}
                     '''
 
@@ -80,23 +80,23 @@ def build_query_array(operator, vector, metadata):
 
     return sql_search_images
 
-def build_query_vector(operator, vector, metadata):
+def build_query_vector(table, operator, vector, metadata):
     query_start = f'''
-                    SELECT img_pgvector.id,
-                           img_pgvector.embedding {operator} '{vector}' 
-                    FROM img_pgvector
+                    SELECT vectors.id,
+                           vectors.embedding {operator} '{vector}' 
+                    FROM {table} vectors
                 '''
 
     if len(metadata) != 0:
         join_metadata = ' AND '.join(metadata)
         query_start += f'''
-                    JOIN metadata ON metadata.id = img_pgvector.id
+                    JOIN metadata ON metadata.id = vectors.id
                     WHERE {join_metadata}
                     '''
         
         
     query_end = f'''
-                    ORDER BY img_pgvector.embedding {operator} '{vector}' 
+                    ORDER BY vectors.embedding {operator} '{vector}' 
                     LIMIT 6
                 ''' 
                 
@@ -114,6 +114,8 @@ def get_images(sql_search_images, indexes):
                 cursor.execute("DROP INDEX IF EXISTS country_name_idx;")
                 cursor.execute("DROP INDEX IF EXISTS region_id_idx;")
                 cursor.execute("DROP INDEX IF EXISTS income_idx;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx;")
+                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx;")
             
             start = datetime.now()
             cursor.execute(sql_search_images)
@@ -181,6 +183,9 @@ def get_query_analysis(sql_search_images, indexes):
                 cursor.execute("DROP INDEX IF EXISTS country_name_idx;")
                 cursor.execute("DROP INDEX IF EXISTS region_id_idx;")
                 cursor.execute("DROP INDEX IF EXISTS income_idx;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx;")
+                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx;")
+
             
             explain_query = "EXPLAIN ANALYZE " + sql_search_images
             cursor.execute(explain_query)
@@ -190,7 +195,6 @@ def get_query_analysis(sql_search_images, indexes):
             if indexes is None:
                 cursor.execute("ROLLBACK;")
 
-            #formatar a analise para enviar corretamente
             return jsonify({"query_analysis": analysis})
                 
         except Exception as e:
@@ -209,17 +213,18 @@ def format_income(income):
 @app.route('/upload', methods=['POST'])
 def upload():
     file = request.files.get('image')
-    operator = request.form.get('Operador')
-    country = request.form.get('Pais')
-    table = request.form.get('Tabela')
-    region = request.form.get('Regiao')
+    operator = request.form.get('operador')
+    country = request.form.get('pais')
+    table = request.form.get('tabela')
+    region = request.form.get('regiao')
     action = request.form.get('acao')
     income = format_income(request.form.get('income'))
-    indexes = request.form.get('useIndexes')
-    print("usar index: ", indexes)
+    indexes = request.form.get('use-indexes')
+    
     if file and file.filename != '':
         encoder = Encoder()
-        vector = encoder.encode(file)
+
+        vector = encoder.encode_clip(file) if 'clip' in table else encoder.encode(file)
 
         metadata = []
         if country != "":
@@ -231,16 +236,16 @@ def upload():
         if income != "":
             metadata.append(f"income BETWEEN {income[0]} AND {income[1]}")
 
-        sql_search_images = build_query_vector(operator, vector, metadata) \
-                            if table == 'img_pgvector'\
-                            else build_query_array(operator, vector, metadata)
+        sql_search_images = build_query_vector(table, operator, vector, metadata) \
+                            if 'vector' in table \
+                            else build_query_array(table, operator, vector, metadata)
 
                 
         print(sql_search_images)
-        if action == 'getImages':
+        if action == 'get-images':
             return get_images(sql_search_images, indexes)
         
-        if action == 'getAnalysis':
+        if action == 'get-analysis':
             return get_query_analysis(sql_search_images, indexes)
         
     return "Nenhuma imagem recebida."
