@@ -111,7 +111,7 @@ def insertImages(vectors, vectors_clip, metadata):
     if count == 0:
         sql = "INSERT INTO img_pgarray_clip (id, embedding) VALUES (%s, %s)"
 
-        vectors_pg = [(vid, vec) for vid, vec in vectors_clip]
+        vectors_pg = [(vid, json.loads(vec)) for vid, vec in vectors_clip]
         try:
             cursor.executemany(sql, vectors_pg)
             conn.commit()
