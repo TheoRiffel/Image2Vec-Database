@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS img_pgarray (
 
 CREATE TABLE IF NOT EXISTS img_pgarray_clip (
     id character(24) PRIMARY KEY,
-    embedding vector(768),
+    embedding float8[],
     CONSTRAINT metadata_id_fkey
         FOREIGN KEY (id)
         REFERENCES metadata (id)
