@@ -57,9 +57,15 @@ def build_query_array(table, operator, vector, metadata):
     vector_str = 'ARRAY[' + ', '.join(map(str, vector)) + ']'
 
     query_start = f'''
-                    SELECT arrays.id
+                    SELECT arrays.id,
+                           {distances[operator][0]} AS dist
                     FROM {table} arrays
+                    JOIN LATERAL unnest(arrays.embedding) WITH ORDINALITY AS t1(a, i)
+                    ON TRUE
+                    JOIN unnest({vector_str}) WITH ORDINALITY AS t2(b, j)
+                    ON i = j
                 '''
+    
     if len(metadata) != 0:
         join_metadata = ' AND '.join(metadata)
         query_start += f'''
@@ -68,14 +74,11 @@ def build_query_array(table, operator, vector, metadata):
                     '''
 
     query_end = f'''
-                    ORDER BY (
-                        SELECT {distances[operator][0]}
-                        FROM unnest(embedding) WITH ORDINALITY AS t1(a, i) 
-                        JOIN unnest({vector_str}) WITH ORDINALITY AS t2(b, j)
-                        ON i = j
-                    ) {distances[operator][1]}
+                    GROUP BY arrays.id
+                    ORDER BY dist {distances[operator][1]}
                     LIMIT 6;
                 '''
+
     sql_search_images = query_start + query_end
 
     return sql_search_images
@@ -93,7 +96,6 @@ def build_query_vector(table, operator, vector, metadata):
                     JOIN metadata ON metadata.id = vectors.id
                     WHERE {join_metadata}
                     '''
-        
         
     query_end = f'''
                     ORDER BY vectors.embedding {operator} '{vector}' 
