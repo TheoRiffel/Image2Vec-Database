@@ -129,13 +129,12 @@ def get_images(sql_search_images, indexes):
 
             images = cursor.fetchall()
 
-            print(len(images[0]))
-            images_id = [image[0] for image in images]
-            images_dist = [str(image[1]) for image in images] if len(images[0]) > 1 else [''] * 6
-
-            if len(images_id) == 0:
+            if len(images) == 0:
                 return jsonify({"error": "Nenhuma imagem encontrada!"})
             
+            images_id = [image[0] for image in images]
+            images_dist = [str(image[1]) for image in images] if len(images[0]) > 1 else [''] * len(images)
+
             images_id_format = tuple(images_id)
 
             params = ['%s'] * len(images_id)
