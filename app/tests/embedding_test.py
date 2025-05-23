@@ -14,7 +14,7 @@ def generate_random_vector(size):
     return [float(x) for x in vec]
 
 def generate_random_vector_by_table(table_name):
-    if 'clip' in table:
+    if 'clip' in table_name:
         return generate_random_vector(768)
 
     return generate_random_vector(4096)
@@ -59,7 +59,7 @@ def build_query_array(table, operator, vector):
 def generate_query_by_table(table_name, operator):
     vector = generate_random_vector_by_table(table_name)
 
-    if 'vector' in table:
+    if 'vector' in table_name:
         return build_query_vector(table_name, operator, vector)
     
     return build_query_array(table_name, operator, vector)
@@ -69,7 +69,7 @@ def test_times_by_table_and_operator(table_name, operator):
     with psycopg.connect(db_url) as conn:
         cursor = conn.cursor()
         try:
-            search_query = generate_query_by_table(table, operator)
+            search_query = generate_query_by_table(table_name, operator)
             cursor.execute(search_query)
         
             result = cursor.fetchall()
@@ -89,8 +89,18 @@ def test_times_by_table_and_operator(table_name, operator):
         except Exception as e:
             print(e)
     
-operator = "<=>"
-table = 'img_pgvector_clip'
+operators = ['<+>', '<->', '<=>', '<#>']
+tables = ['img_pgvector', 'img_pgvector_clip', 'img_pgarray', 'img_pgarray_clip']
 
-# todo: make a for loop that runs multiple tests with all the tables/operators
-print(test_times_by_table_and_operator(table, operator))
+rows = []
+test_amount = 20
+for selected_table in tables:
+    for operator in operators:
+        for i in range(test_amount):
+            result = test_times_by_table_and_operator(selected_table, operator)
+            rows.append([selected_table, operator, result['execution_time'], result['planning_time']])
+            print(f"Testing table '{selected_table}' with operator '{operator}' ({i+1}/{test_amount})")
+    break
+    
+df = pd.DataFrame(rows, columns=['table', 'operator', 'execution_time', 'planning_time'])
+df.to_csv('./app/tests/embedding_test.csv')
