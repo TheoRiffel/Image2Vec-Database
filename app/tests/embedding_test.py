@@ -120,10 +120,11 @@ for selected_table, use_index in tables:
     for operator in operators:
         for i in range(test_amount):
             result = test_times_by_table_and_operator(selected_table, operator, use_index)
+            table_name = selected_table
             if not use_index:
-                selected_table += ' (no index)'
-            rows.append([selected_table, operator, result['execution_time'], result['planning_time']])
-            print(f"Testing table '{selected_table}' with operator '{operator}' ({i+1}/{test_amount})")
+                table_name += ' (no index)'
+            rows.append([table_name, operator, result['execution_time'], result['planning_time']])
+            print(f"Testing table '{table_name}' with operator '{operator}' ({i+1}/{test_amount})")
     
 df = pd.DataFrame(rows, columns=['table', 'operator', 'execution_time', 'planning_time'])
 df.to_csv('./app/tests/embedding_test.csv')
