@@ -64,11 +64,22 @@ def generate_query_by_table(table_name, operator):
     
     return build_query_array(table_name, operator, vector)
 
-def test_times_by_table_and_operator(table_name, operator):
+def test_times_by_table_and_operator(table_name, operator, use_index):
             
     with psycopg.connect(db_url) as conn:
         cursor = conn.cursor()
         try:
+            if use_index is False:
+                cursor.execute("BEGIN;")
+                cursor.execute("DROP INDEX IF EXISTS country_name_idx;")
+                cursor.execute("DROP INDEX IF EXISTS region_id_idx;")
+                cursor.execute("DROP INDEX IF EXISTS income_idx;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_cosine;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_l1;")
+                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_l2;")
+                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_ip;")
+            
+            
             search_query = generate_query_by_table(table_name, operator)
             cursor.execute(search_query)
         
@@ -84,23 +95,35 @@ def test_times_by_table_and_operator(table_name, operator):
                     
             execution_time = float(re.findall(regex, result[-1][0])[0])
             
+            
+            if use_index is False:
+                cursor.execute("ROLLBACK;")
+            
             return {'planning_time': planning_time, 'execution_time': execution_time}
 
         except Exception as e:
             print(e)
+            
     
 operators = ['<+>', '<->', '<=>', '<#>']
-tables = ['img_pgvector', 'img_pgvector_clip', 'img_pgarray', 'img_pgarray_clip']
+tables = [
+    ('img_pgvector', True), 
+    ('img_pgvector_clip', True), 
+    ('img_pgvector_clip', False), 
+    ('img_pgarray', True), 
+    ('img_pgarray_clip', True)
+]
 
 rows = []
 test_amount = 20
-for selected_table in tables:
+for selected_table, use_index in tables:
     for operator in operators:
         for i in range(test_amount):
-            result = test_times_by_table_and_operator(selected_table, operator)
+            result = test_times_by_table_and_operator(selected_table, operator, use_index)
+            if not use_index:
+                selected_table += ' (no index)'
             rows.append([selected_table, operator, result['execution_time'], result['planning_time']])
             print(f"Testing table '{selected_table}' with operator '{operator}' ({i+1}/{test_amount})")
-    break
     
 df = pd.DataFrame(rows, columns=['table', 'operator', 'execution_time', 'planning_time'])
 df.to_csv('./app/tests/embedding_test.csv')
