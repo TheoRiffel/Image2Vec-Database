@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 import psycopg
+from pymilvus import MilvusClient
 import os
 from dotenv import load_dotenv
 from encoder import Encoder
@@ -10,6 +11,9 @@ load_dotenv()
 app = Flask(__name__)
 app.app_context().push()
 
+DB_URL = os.getenv('DB_URL')
+IMAGE_HOST = os.getenv('IMAGE_HOST')
+
 @app.route('/', methods=['POST', 'GET'])
 def index():
     return render_template("index.html")
@@ -19,7 +23,7 @@ def get_metadata():
     print("get metadata")
     country_names = []
     regions = []
-    with psycopg.connect(os.getenv('DB_URL')) as conn:
+    with psycopg.connect(DB_URL) as conn:
         cursor = conn.cursor()
         sql_get_countries = "SELECT DISTINCT(country_name) FROM metadata ORDER BY country_name"
         sql_get_regions = "SELECT DISTINCT(region_id) FROM metadata ORDER BY region_id"
@@ -105,8 +109,72 @@ def build_query_vector(table, operator, vector, metadata):
     
     return sql_search_images
 
-def get_images(sql_search_images, indexes):
-    with psycopg.connect(os.getenv('DB_URL')) as conn:
+
+def build_query_milvus(field, operator, vector, metadata):
+    field = "vector_768" if "clip" in field else "vector_4096"
+    distances = {
+        '<->': 'L2',
+        '<=>': 'COSINE',
+        '<#>': 'IP',
+    }
+    client = MilvusClient("default.db")
+
+    index_params = MilvusClient.prepare_index_params()
+
+    #4.2. Add an index on the vector field.
+    index_params.add_index(
+        field_name=field,
+        metric_type=distances[operator],
+        index_type="IVF_FLAT",
+        index_name="vector_index",
+        params={ "nlist": 128 }
+    )
+
+    # 4.3. Create an index file
+    client.create_index(
+        collection_name="ImageData",
+        index_params=index_params,
+        sync=False # Whether to wait for index creation to complete before returning. Defaults to True.
+    )
+    try:
+        start = datetime.now()
+        res = client.search(collection_name="ImageData",
+                            data=[vector],
+                            limit=6,
+                            anns_field=field,
+                            output_fields=["country_name","income", "imagenet_synonyms", "image_rel_path"],
+                            search_params={
+                                "metric_type": distances[operator],
+                                "params": {"nprobe": 100}
+                            })
+        end = datetime.now()
+        query_time = end - start
+
+        images = res[0]
+        image_src = IMAGE_HOST
+
+        images_metadata_formatted = [
+            {
+            "image_path": image_src + image['entity']['image_rel_path'].strip(),
+            "image_country": image['entity']['country_name'],
+            "image_income": image['entity']['income'],
+            "image_synonyms": list(image['entity']['imagenet_synonyms']),
+            "image_distance": str(image['distance'])[0:18]
+            }
+            for image in images 
+        ]
+
+        print(images_metadata_formatted)
+        return jsonify({"images_metadata": images_metadata_formatted, "query_time": str(query_time)})
+    
+
+    except Exception as e:
+        print(e)
+        return jsonify({"error": "erro"})
+
+
+def get_images_postgresql(sql_search_images, indexes):
+    with psycopg.connect(DB_URL) as conn:
         cursor = conn.cursor()
                          
         try:
@@ -150,7 +218,7 @@ def get_images(sql_search_images, indexes):
             cursor.execute(sql_get_images, images_id_format)
             images_metadata = cursor.fetchall()
 
-            image_src = os.getenv('IMAGE_HOST')
+            image_src = IMAGE_HOST
 
             images_metadata_formatted = [
                 {
@@ -175,8 +243,8 @@ def get_images(sql_search_images, indexes):
             return jsonify({"error": "erro"})
     
 
-def get_query_analysis(sql_search_images, indexes):
-    with psycopg.connect(os.getenv('DB_URL')) as conn:
+def get_query_analysis_postgresql(sql_search_images, indexes):
+    with psycopg.connect(DB_URL) as conn:
         cursor = conn.cursor()
               
         try:
@@ -202,7 +270,7 @@ def get_query_analysis(sql_search_images, indexes):
             return jsonify({"query_analysis": analysis})
                 
         except Exception as e:
-            print(e)
+            return jsonify({"error": "erro"})
            
 
 def format_income(income):
@@ -212,11 +280,24 @@ def format_income(income):
 
     return [min_income, max_income]
     
+
+def postgresql(action, indexes, table, operator, vector, metadata):
+    sql_search_images = build_query_vector(table, operator, vector, metadata) \
+                            if 'vector' in table \
+                            else build_query_array(table, operator, vector, metadata)
+
+                
+    if action == 'get-images':
+        return get_images_postgresql(sql_search_images, indexes)
+        
+    if action == 'get-analysis':
+        return get_query_analysis_postgresql(sql_search_images, indexes)
     
 
 @app.route('/upload', methods=['POST'])
 def upload():
     file = request.files.get('image')
+    database = request.form.get('banco')
     operator = request.form.get('operador')
     country = request.form.get('pais')
     table = request.form.get('tabela')
@@ -224,6 +305,8 @@ def upload():
     action = request.form.get('acao')
     income = format_income(request.form.get('income'))
     indexes = request.form.get('use-indexes')
+
+    print(database)
     
     if file and file.filename != '':
         encoder = Encoder()
@@ -240,16 +323,16 @@ def upload():
         if income != "":
             metadata.append(f"income BETWEEN {income[0]} AND {income[1]}")
 
-        sql_search_images = build_query_vector(table, operator, vector, metadata) \
-                            if 'vector' in table \
-                            else build_query_array(table, operator, vector, metadata)
-
-                
-        if action == 'get-images':
-            return get_images(sql_search_images, indexes)
+        if database == "postgresql":
+            return postgresql(action, indexes, table, operator, vector, metadata)
         
-        if action == 'get-analysis':
-            return get_query_analysis(sql_search_images, indexes)
+        if database == "milvus":
+            return build_query_milvus(table, operator, vector, metadata)
+        
+        if database == "comparar":
+            pass
+
+        
         
     return "Nenhuma imagem recebida."
     

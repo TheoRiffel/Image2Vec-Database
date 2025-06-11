@@ -24,13 +24,17 @@
             </div>
 
             <form method="POST" enctype="multipart/form-data" id="send-image">
-                <input type="file" name="image" id="input-image" accept="image/*" capture="environment" required><br>
+                <input type="file" name="image" id="input-image" accept="image/*" capture="environment" required>
+                <p><label for="select-bd">Banco de Dados:</label>
+                <select name="banco" id="select-bd">
+                    <option value="postgresql" >PostgreSQL</option>
+                    <option value="milvus">Milvus</option>
+                    <option value="comparar" selected>Comparar</option>
+                </select> </p>
                 <p><label for="select-tabela">Tabela:</label>
                 <select name="tabela" id="select-tabela">
-                    <option value="img_pgvector">pgvector</option>
-                    <option value="img_pgarray">array</option>
-                    <option value="img_pgvector_clip">pgvector_clip</option>
-                    <option value="img_pgarray_clip">array_clip</option>
+                    <option value="vector">vector</option>
+                    <option value="vector_clip">vector_clip</option>
                 </select> </p>
                 <p><label for="select-operador">Operador:</label>
                 <select name="operador" id="select-operador">
@@ -53,7 +57,7 @@
                 <p><label for="use-indexes">Usar índices:</label>
                 <input type="checkbox" name="use-indexes" id="use-indexes" checked></p>
                 <button type="submit" id="get-images" name="get-images" value="get-images"> Obter Imagens </button>
-                <button type="submit" id="get-analysis" name="get-analysis" value="get-analysis"> Analisar Consulta </button>
+                <button type="submit" id="get-analysis" name="get-analysis" value="get-analysis"> Analisar Consulta </button>                
             </form>
         </div>
     </section>
@@ -115,6 +119,28 @@
 
         $('#send-image button[type=submit]').on('click', function () {
             acao = $(this).val();
+        });
+
+        $(document).on("change", "#select-bd", function(e) {
+            $("#select-tabela").empty();
+            const valorSelecionado = this.value; // 
+
+            if (valorSelecionado === "milvus"){
+               $("#select-tabela").append("<option value='vector_clip'>vector_768</option>");
+               $("#select-tabela").append("<option value='vector'>vector_4096</option>");
+            }
+            else if (valorSelecionado === "comparar"){
+               $("#select-tabela").append("<option value='vector'>vector</option>");
+               $("#select-tabela").append("<option value='vector_clip'>vector_clip</option>");
+            }
+            else{
+                $("#select-tabela").append("<option value='img_pgvector'>img_pgvector</option>");
+                $("#select-tabela").append("<option value='img_pgarray'>img_pgarray</option>");
+                $("#select-tabela").append("<option value='img_pgvector_clip'>img_pgvector_clip</option>");
+                $("#select-tabela").append("<option value='img_pgarray_clip'>img_pgarray_clip</option>");
+            }
+            console.log(valorSelecionado);
+
         });
 
         $(document).on("submit", "#send-image", function (e) {
