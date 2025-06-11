@@ -38,7 +38,7 @@
                 </select> </p>
                 <p><label for="select-operador">Operador:</label>
                 <select name="operador" id="select-operador">
-                    <option value="<+>">L1</option>
+                    <option id="operador_l1" value="<+>">L1</option>
                     <option value="<->">L2</option>
                     <option value="<=>" selected>Cosine</option>
                     <option value="<#>">Inner product</option>
@@ -74,6 +74,7 @@
 
     <script>
         $(document).ready(function() {
+            document.getElementById("operador_l1").style.display = "none";
             document.getElementById("get-images").disabled = true; 
             document.getElementById("get-analysis").disabled = true; 
             $.ajax({
@@ -122,22 +123,26 @@
         });
 
         $(document).on("change", "#select-bd", function(e) {
+            var x = document.getElementById("operador_l1");
             $("#select-tabela").empty();
             const valorSelecionado = this.value; // 
 
             if (valorSelecionado === "milvus"){
                $("#select-tabela").append("<option value='vector_clip'>vector_768</option>");
                $("#select-tabela").append("<option value='vector'>vector_4096</option>");
+               x.style.display = "none";
             }
             else if (valorSelecionado === "comparar"){
                $("#select-tabela").append("<option value='vector'>vector</option>");
                $("#select-tabela").append("<option value='vector_clip'>vector_clip</option>");
+               x.style.display = "none";
             }
             else{
                 $("#select-tabela").append("<option value='img_pgvector'>img_pgvector</option>");
                 $("#select-tabela").append("<option value='img_pgarray'>img_pgarray</option>");
                 $("#select-tabela").append("<option value='img_pgvector_clip'>img_pgvector_clip</option>");
                 $("#select-tabela").append("<option value='img_pgarray_clip'>img_pgarray_clip</option>");
+                x.style.display = "block";
             }
             console.log(valorSelecionado);
 

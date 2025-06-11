@@ -110,13 +110,16 @@ def build_query_vector(table, operator, vector, metadata):
     return sql_search_images
 
 
-def build_query_milvus(field, operator, vector, metadata):
+def get_images_milvus(field, operator, vector, metadata):
     field = "vector_768" if "clip" in field else "vector_4096"
     distances = {
         '<->': 'L2',
         '<=>': 'COSINE',
         '<#>': 'IP',
     }
+
+    distance = distances[operator]
+
     client = MilvusClient("default.db")
 
     index_params = MilvusClient.prepare_index_params()
@@ -124,9 +127,9 @@ def build_query_milvus(field, operator, vector, metadata):
     #4.2. Add an index on the vector field.
     index_params.add_index(
         field_name=field,
-        metric_type=distances[operator],
+        metric_type=distance,
         index_type="IVF_FLAT",
-        index_name="vector_index",
+        index_name=field+"_"+distance+"_index",
         params={ "nlist": 128 }
     )
 
@@ -144,7 +147,7 @@ def build_query_milvus(field, operator, vector, metadata):
                             anns_field=field,
                             output_fields=["country_name","income", "imagenet_synonyms", "image_rel_path"],
                             search_params={
-                                "metric_type": distances[operator],
+                                "metric_type": distance,
                                 "params": {"nprobe": 100}
                             })
         end = datetime.now()
@@ -236,11 +239,11 @@ def get_images_postgresql(sql_search_images, indexes):
             if indexes is None:
                 cursor.execute("ROLLBACK;")
         
-            return jsonify({"images_metadata": images_metadata_formatted, "query_time": str(query_time)})
+            return {"images_metadata": images_metadata_formatted, "query_time": str(query_time)}
 
         except Exception as e:
             print(e)
-            return jsonify({"error": "erro"})
+            return {"error": "erro"}
     
 
 def get_query_analysis_postgresql(sql_search_images, indexes):
@@ -267,10 +270,10 @@ def get_query_analysis_postgresql(sql_search_images, indexes):
             if indexes is None:
                 cursor.execute("ROLLBACK;")
 
-            return jsonify({"query_analysis": analysis})
+            return {"query_analysis": analysis}
                 
         except Exception as e:
-            return jsonify({"error": "erro"})
+            return {"error": "erro"}
            
 
 def format_income(income):
@@ -288,10 +291,12 @@ def postgresql(action, indexes, table, operator, vector, metadata):
 
                 
     if action == 'get-images':
-        return get_images_postgresql(sql_search_images, indexes)
+        res = get_images_postgresql(sql_search_images, indexes)
+        return jsonify(res)
         
     if action == 'get-analysis':
-        return get_query_analysis_postgresql(sql_search_images, indexes)
+        res = get_query_analysis_postgresql(sql_search_images, indexes)
+        return jsonify(res)
     
 
 @app.route('/upload', methods=['POST'])
