@@ -1,12 +1,10 @@
 
 import os
-import requests
 import psycopg
 import json
 import pandas as pd
 from dotenv import load_dotenv
-from encoder import Encoder
-from io import BytesIO
+from embed import getEmbeddings, getEmbeddings_clip
 
 load_dotenv()
 
@@ -18,27 +16,6 @@ db_port = os.getenv('DB_PORT')
 
 global conn, cursor
 
-def getEmbeddings(imgPath):
-    base = os.getenv('IMAGE_HOST')
-    response = requests.get(base+imgPath)
-    img_path = BytesIO(response.content)
-    
-    vector = encoder.encode(img_path)
-
-    print("Embedding completed!")
-
-    return vector
-
-def getEmbeddings_clip(imgPath):
-    base = os.getenv('IMAGE_HOST')
-    response = requests.get(base+imgPath)
-    img_path = BytesIO(response.content)
-    
-    vector = encoder.encode_clip(img_path)
-
-    print("Embedding clip completed!")
-
-    return vector
 
 def insertImages(vectors, vectors_clip, metadata):
     cursor.execute("SELECT count(*) FROM metadata")
@@ -143,28 +120,31 @@ if __name__ == "__main__":
                             host = db_host,
                             port = db_port)
         cursor = conn.cursor()
+
+        df = pd.read_csv("dollar_street_test.csv")
+
+        if 'vector' not in df.columns:
+            df['vector'] = df['imageRelPath'].apply(getEmbeddings)
+            df.to_csv("dollar_street_test.csv", index=False)
+        print("Embeddings normal completed!")
+
+        if 'vector_clip' not in df.columns:
+            df['vector_clip'] = df['imageRelPath'].apply(getEmbeddings_clip)
+            df.to_csv("dollar_street_test.csv", index=False)
+        print("Embeddings clip completed!")
+
+        vectors = []
+        vectors_clip = []
+        metadata = []
+
+        df.apply(lambda item: saveData(item, vectors, vectors_clip, metadata), axis=1)
+
+        insertImages(vectors, vectors_clip, metadata)
+
+        conn.close()
+
     except Exception as e:
         print(e)
         print("I am unable to connect to the database")
 
-    encoder = Encoder()
-    df = pd.read_csv("dollar_street_test.csv")
-    if 'vector' not in df.columns:
-        df['vector'] = df['imageRelPath'].apply(getEmbeddings)
-        df.to_csv("dollar_street_test.csv", index=False)
-    print("Embeddings normal completed!")
-
-    if 'vector_clip' not in df.columns:
-        df['vector_clip'] = df['imageRelPath'].apply(getEmbeddings_clip)
-        df.to_csv("dollar_street_test.csv", index=False)
-    print("Embeddings clip completed!")
-
-    vectors = []
-    vectors_clip = []
-    metadata = []
-
-    df.apply(lambda item: saveData(item, vectors, vectors_clip, metadata), axis=1)
-
-    insertImages(vectors, vectors_clip, metadata)
-
-    conn.close()
+    

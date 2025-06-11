@@ -1,8 +1,7 @@
 import pandas as pd
 import json
 from pymilvus import MilvusClient, DataType
-
-client = MilvusClient("default.db")
+from embed import getEmbeddings, getEmbeddings_clip
 
 def save_data(item, data):
     info = {
@@ -97,56 +96,36 @@ def createSchema():
 
 if __name__ == "__main__":
 
-
     df = pd.read_csv("dollar_street_test.csv")
 
-    vector = json.loads(df['vector_clip'][0])
-    print(len(vector))
+    if 'vector' not in df.columns:
+        df['vector'] = df['imageRelPath'].apply(getEmbeddings)
+        df.to_csv("dollar_street_test.csv", index=False)
+    print("Embeddings normal completed!")
 
-    # data = []
-    # df.apply(lambda item: save_data(item, data), axis=1)
+    if 'vector_clip' not in df.columns:
+        df['vector_clip'] = df['imageRelPath'].apply(getEmbeddings_clip)
+        df.to_csv("dollar_street_test.csv", index=False)
+    print("Embeddings clip completed!")
 
-    # schema = createSchema()
+    client = MilvusClient("default.db")
 
-    # if client.has_collection(collection_name="ImageData"):
-    #     client.drop_collection(collection_name="ImageData")
-    # client.create_collection(collection_name="ImageData", schema=schema, dimension=768, enable_dynamic_field=True)
+    data = []
+    df.apply(lambda item: save_data(item, data), axis=1)
 
-    # try:
-    #     res = client.insert(collection_name="ImageData", data=data)
-    # except Exception as e:
-    #     print(f"Error inserting data: {e}")
-    #     res = None
-    index_params = MilvusClient.prepare_index_params()
+    schema = createSchema()
 
-    # 4.2. Add an index on the vector field.
-    index_params.add_index(
-        field_name="vector_768",
-        metric_type="COSINE",
-        index_type="IVF_FLAT",
-        index_name="vector_index",
-        params={ "nlist": 128 }
-    )
+    if client.has_collection(collection_name="ImageData"):
+        client.drop_collection(collection_name="ImageData")
+    client.create_collection(collection_name="ImageData", 
+                             schema=schema, 
+                             dimension=768, 
+                             enable_dynamic_field=True)
 
-    # 4.3. Create an index file
-    client.create_index(
-        collection_name="ImageData",
-        index_params=index_params,
-        sync=False # Whether to wait for index creation to complete before returning. Defaults to True.
-    )
+    try:
+        res = client.insert(collection_name="ImageData", data=data)
+    except Exception as e:
+        print(f"Error inserting data: {e}")
+        res = None
 
-    res = client.search(collection_name="ImageData",
-                        data=[vector],
-                        limit=10,
-                        anns_field="vector_768",
-                        output_fields=["image_rel_path"],
-                        search_params={
-                            "metric_type": "COSINE",
-                            "params": {"nprobe": 10}
-                        })
     print(res)
-
-
-
-
-    
