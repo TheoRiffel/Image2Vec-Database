@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 import psycopg
-from pymilvus import MilvusClient
+from pymilvus import MilvusClient, Collection
 import os
 from dotenv import load_dotenv
 from encoder import Encoder
@@ -110,7 +110,7 @@ def build_query_vector(table, operator, vector, metadata):
     return sql_search_images
 
 
-def get_images_milvus(field, operator, vector, metadata):
+def get_images_milvus(indexes, vector_index, field, operator, vector, metadata):
     field = "vector_768" if "clip" in field else "vector_4096"
     distances = {
         '<->': 'L2',
@@ -119,32 +119,48 @@ def get_images_milvus(field, operator, vector, metadata):
     }
 
     distance = distances[operator]
-
-    client = MilvusClient("default.db")
-
-    index_params = MilvusClient.prepare_index_params()
-
-    #4.2. Add an index on the vector field.
-    index_params.add_index(
-        field_name=field,
-        metric_type=distance,
-        index_type="IVF_FLAT",
-        index_name=field+"_"+distance+"_index",
-        params={ "nlist": 128 }
-    )
-
-    # 4.3. Create an index file
-    client.create_index(
-        collection_name="ImageData",
-        index_params=index_params,
-        sync=False # Whether to wait for index creation to complete before returning. Defaults to True.
-    )
+    print(metadata)
     try:
+        client = MilvusClient("default.db")
+        client.drop_index(collection_name="ImageData", index_name="vector_index")
+
+        index_params = MilvusClient.prepare_index_params()
+
+        if indexes == None or (vector_index==None or vector_index==''):
+            index_params.add_index(
+                field_name=field,
+                metric_type=distance,
+                index_type="FLAT",
+                index_name="vector_index",
+                params = {}
+            )
+            
+        else:
+            index_params.add_index(
+                field_name=field,
+                metric_type=distance,
+                index_type=vector_index.upper(),
+                index_name="vector_index",
+                params = {"n_list": 128}
+            )
+
+        print(index_params)
+
+        client.create_index(
+            collection_name="ImageData",
+            index_params=index_params,
+            sync=False # Whether to wait for index creation to complete before returning. Defaults to True.
+        )
+
+
+        print(client.list_indexes(collection_name="ImageData"))
+
         start = datetime.now()
         res = client.search(collection_name="ImageData",
                             data=[vector],
                             limit=6,
                             anns_field=field,
+                            filter = metadata,
                             output_fields=["country_name","income", "imagenet_synonyms", "image_rel_path"],
                             search_params={
                                 "metric_type": distance,
@@ -167,7 +183,6 @@ def get_images_milvus(field, operator, vector, metadata):
             for image in images 
         ]
 
-        print(images_metadata_formatted)
         return jsonify({"images_metadata": images_metadata_formatted, "query_time": str(query_time)})
     
 
@@ -176,10 +191,10 @@ def get_images_milvus(field, operator, vector, metadata):
         return jsonify({"error": "erro"})
 
 
-def get_images_postgresql(sql_search_images, indexes):
+def get_images_postgresql(sql_search_images, indexes, vector_index):
     with psycopg.connect(DB_URL) as conn:
         cursor = conn.cursor()
-                         
+
         try:
             if indexes is None:
                 cursor.execute("BEGIN;")
@@ -188,8 +203,11 @@ def get_images_postgresql(sql_search_images, indexes):
                 cursor.execute("DROP INDEX IF EXISTS income_idx;")
                 cursor.execute("DROP INDEX IF EXISTS hnsw_idx_cosine;")
                 cursor.execute("DROP INDEX IF EXISTS hnsw_idx_l1;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_l2;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_ip;")
                 cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_l2;")
                 cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_ip;")
+                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_cosine;")
             
             start = datetime.now()
             cursor.execute(sql_search_images)
@@ -246,28 +264,42 @@ def get_images_postgresql(sql_search_images, indexes):
             return {"error": "erro"}
     
 
-def get_query_analysis_postgresql(sql_search_images, indexes):
+def get_query_analysis_postgresql(sql_search_images, indexes, vector_index):
     with psycopg.connect(DB_URL) as conn:
         cursor = conn.cursor()
               
         try:
-            if indexes is None:
+            if indexes is None or (vector_index is None or vector_index == ''):
                 cursor.execute("BEGIN;")
                 cursor.execute("DROP INDEX IF EXISTS country_name_idx;")
                 cursor.execute("DROP INDEX IF EXISTS region_id_idx;")
                 cursor.execute("DROP INDEX IF EXISTS income_idx;")
                 cursor.execute("DROP INDEX IF EXISTS hnsw_idx_cosine;")
                 cursor.execute("DROP INDEX IF EXISTS hnsw_idx_l1;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_l2;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_ip;")
                 cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_l2;")
                 cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_ip;")
+                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_cosine;")
 
+            if vector_index == 'ivf_flat':
+                cursor.execute("BEGIN;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_cosine;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_l1;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_l2;")
+                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_ip;")
+            elif vector_index == 'hnsw':
+                cursor.execute("BEGIN;")
+                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_l2;")
+                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_ip;")
+                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_cosine;")
             
             explain_query = "EXPLAIN ANALYZE " + sql_search_images
             cursor.execute(explain_query)
 
             analysis = cursor.fetchall()
 
-            if indexes is None:
+            if indexes is None or (vector_index is not None or vector_index == ''):
                 cursor.execute("ROLLBACK;")
 
             return {"query_analysis": analysis}
@@ -284,18 +316,18 @@ def format_income(income):
     return [min_income, max_income]
     
 
-def postgresql(action, indexes, table, operator, vector, metadata):
+def postgresql(action, indexes, vector_index, table, operator, vector, metadata):
     sql_search_images = build_query_vector(table, operator, vector, metadata) \
                             if 'vector' in table \
                             else build_query_array(table, operator, vector, metadata)
 
                 
     if action == 'get-images':
-        res = get_images_postgresql(sql_search_images, indexes)
+        res = get_images_postgresql(sql_search_images, indexes, vector_index)
         return jsonify(res)
         
     if action == 'get-analysis':
-        res = get_query_analysis_postgresql(sql_search_images, indexes)
+        res = get_query_analysis_postgresql(sql_search_images, indexes, vector_index)
         return jsonify(res)
     
 
@@ -310,6 +342,7 @@ def upload():
     action = request.form.get('acao')
     income = format_income(request.form.get('income'))
     indexes = request.form.get('use-indexes')
+    vector_index = request.form.get('indice')
 
     print(database)
     
@@ -319,20 +352,37 @@ def upload():
         vector = encoder.encode_clip(file) if 'clip' in table else encoder.encode(file)
 
         metadata = []
+        metadata_milvus = []
+        filter = ""
+        filter_params = {}
         if country != "":
             metadata.append(f"country_name = '{country}'")
+            filter_params["country"] = country
+            filter += f"country_name == '{country}'"
             
         if region != "":
             metadata.append(f"region_id = '{region}'")
+            filter_params["region"] = region
+            if len(filter) != 0:
+                filter += " AND "
+            filter += f"region_id == '{region}'"
+
 
         if income != "":
             metadata.append(f"income BETWEEN {income[0]} AND {income[1]}")
+            filter_params["min_income"] = income[0]
+            filter_params["max_income"] = income[1]
+            if len(filter) != 0:
+                filter += " AND "
+            filter += f"income <= {income[0]} AND "
+            filter += f"income >= {income[1]}"
+        
 
         if database == "postgresql":
-            return postgresql(action, indexes, table, operator, vector, metadata)
+            return postgresql(action, indexes, vector_index, table, operator, vector, metadata)
         
         if database == "milvus":
-            return build_query_milvus(table, operator, vector, metadata)
+            return get_images_milvus(indexes, vector_index, table, operator, vector, filter)
         
         if database == "comparar":
             pass

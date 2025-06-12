@@ -55,7 +55,12 @@
                 <input type="text" id="income" name="income" readonly></p>
                 <div id="slider-range"></div>
                 <p><label for="use-indexes">Usar índices:</label>
-                <input type="checkbox" name="use-indexes" id="use-indexes" checked></p>
+                <input type="checkbox" name="use-indexes" id="use-indexes" checked>
+                <select name="indice" id="select-index">
+                    <option value="" selected></option>
+                    <option value="ivf_flat" >IVFFLAT</option>
+                    <option value="hnsw" >HNSW</option>
+                </select> </p>
                 <button type="submit" id="get-images" name="get-images" value="get-images"> Obter Imagens </button>
                 <button type="submit" id="get-analysis" name="get-analysis" value="get-analysis"> Analisar Consulta </button>                
             </form>
@@ -123,28 +128,57 @@
         });
 
         $(document).on("change", "#select-bd", function(e) {
-            var x = document.getElementById("operador_l1");
+            const operador = document.getElementById("operador_l1");
             $("#select-tabela").empty();
             const valorSelecionado = this.value; // 
 
             if (valorSelecionado === "milvus"){
                $("#select-tabela").append("<option value='vector_clip'>vector_768</option>");
                $("#select-tabela").append("<option value='vector'>vector_4096</option>");
-               x.style.display = "none";
+               operador.style.display = "none";
             }
             else if (valorSelecionado === "comparar"){
                $("#select-tabela").append("<option value='vector'>vector</option>");
                $("#select-tabela").append("<option value='vector_clip'>vector_clip</option>");
-               x.style.display = "none";
+               operador.style.display = "none";
             }
             else{
                 $("#select-tabela").append("<option value='img_pgvector'>img_pgvector</option>");
                 $("#select-tabela").append("<option value='img_pgarray'>img_pgarray</option>");
                 $("#select-tabela").append("<option value='img_pgvector_clip'>img_pgvector_clip</option>");
                 $("#select-tabela").append("<option value='img_pgarray_clip'>img_pgarray_clip</option>");
-                x.style.display = "block";
+                operador.style.display = "block";
             }
             console.log(valorSelecionado);
+
+        });
+
+        $(document).on("change", "#use-indexes", function(e) {
+            const usarIndices = document.getElementById("use-indexes");
+            const estaSelecionado = usarIndices.checked;
+
+            if(!estaSelecionado) {
+                document.getElementById("select-index").style.display = "none";
+                const bd = document.getElementById("select-bd").value;
+                if(bd === "postgresql")
+                    document.getElementById("operador_l1").style.display = "block";
+            }
+            
+            else
+                document.getElementById("select-index").style.display = "inline";
+    
+        });
+
+        $(document).on("change", "#select-index", function(e) {
+            const bd = document.getElementById("select-bd").value;
+            const valorSelecionado = this.value; 
+
+            if(bd === "postgresql"){
+                if (valorSelecionado === "ivfflat")
+                    document.getElementById("operador_l1").style.display = "none";
+                else
+                    document.getElementById("operador_l1").style.display = "block";
+            }
 
         });
 
