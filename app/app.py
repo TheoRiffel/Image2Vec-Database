@@ -186,12 +186,12 @@ def get_images_milvus(indexes, vector_index, field, distance, vector, metadata):
             for image in images 
         ]
 
-        return jsonify({"images_metadata": images_metadata_formatted, "query_time": str(query_time)})
+        return {"images_metadata": images_metadata_formatted, "query_time": str(query_time)}
     
 
     except Exception as e:
         print(e)
-        return jsonify({"error": "erro"})
+        return {"error": "erro"}
 
 
 def get_images_postgresql(sql_search_images, indexes, vector_index, operator):
@@ -352,13 +352,17 @@ def postgresql(action, indexes, vector_index, table, operator, vector, metadata)
 
                 
     if action == 'get-images':
-        res = get_images_postgresql(sql_search_images, indexes, vector_index, operator)
-        return jsonify(res)
+        return jsonify(get_images_postgresql(sql_search_images, indexes, vector_index, operator))
         
     if action == 'get-analysis':
-        res = get_query_analysis_postgresql(sql_search_images, indexes, vector_index, operator)
-        return jsonify(res)
-    
+        return jsonify(get_query_analysis_postgresql(sql_search_images, indexes, vector_index, operator))
+
+def milvus(action, indexes, vector_index, table, operator, vector, filter):
+    if action == 'get-images':
+        return jsonify(get_images_milvus(indexes, vector_index, table, operator, vector, filter))
+        
+    if action == 'get-analysis':
+        return jsonify({"error":"Nao foi implementado ainda!"})
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -411,7 +415,7 @@ def upload():
             return postgresql(action, indexes, vector_index, table, operator, vector, metadata)
         
         if database == "milvus":
-            return get_images_milvus(indexes, vector_index, table, operator, vector, filter)
+            return milvus(action, indexes, vector_index, table, operator, vector, filter)
         
         if database == "comparar":
             pass
