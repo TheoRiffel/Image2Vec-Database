@@ -52,10 +52,10 @@ def get_metadata():
 
 def build_query_array(table, operator, vector, metadata):
     distances = {
-        '<+>': ('SUM(ABS(a - b))', 'ASC'), # Manhattan
-        '<->': ('SQRT(SUM(POWER(a - b, 2)))', 'ASC'), # Euclidean
-        '<=>': ('1 - SUM(a * b) / (sqrt(SUM(a * a)) * sqrt(SUM(b * b)))', 'ASC'), # Cosine
-        '<#>': ('SUM(a * b)', 'DESC'), # Inner Product
+        'l1': ('SUM(ABS(a - b))', 'ASC'), # Manhattan
+        'l2': ('SQRT(SUM(POWER(a - b, 2)))', 'ASC'), # Euclidean
+        'cosine': ('1 - SUM(a * b) / (sqrt(SUM(a * a)) * sqrt(SUM(b * b)))', 'ASC'), # Cosine
+        'ip': ('SUM(a * b)', 'DESC'), # Inner Product
     }
 
     vector_str = 'ARRAY[' + ', '.join(map(str, vector)) + ']'
@@ -86,7 +86,16 @@ def build_query_array(table, operator, vector, metadata):
 
     return sql_search_images
 
-def build_query_vector(table, operator, vector, metadata):
+def build_query_vector(table, distance, vector, metadata):
+    distances = {
+        'l1': '<+>',
+        'l2': '<->',
+        'cosine': '<=>',
+        'ip': '<#>'
+    }
+
+    operator = distances[distance]
+     
     query_start = f'''
                     SELECT vectors.id,
                            vectors.embedding {operator} '{vector}' 
@@ -110,15 +119,9 @@ def build_query_vector(table, operator, vector, metadata):
     return sql_search_images
 
 
-def get_images_milvus(indexes, vector_index, field, operator, vector, metadata):
+def get_images_milvus(indexes, vector_index, field, distance, vector, metadata):
     field = "vector_768" if "clip" in field else "vector_4096"
-    distances = {
-        '<->': 'L2',
-        '<=>': 'COSINE',
-        '<#>': 'IP',
-    }
 
-    distance = distances[operator]
     print(metadata)
     try:
         client = MilvusClient("default.db")
@@ -126,10 +129,10 @@ def get_images_milvus(indexes, vector_index, field, operator, vector, metadata):
 
         index_params = MilvusClient.prepare_index_params()
 
-        if indexes == None or (vector_index==None or vector_index==''):
+        if indexes == None or len(vector_index) == 0:
             index_params.add_index(
                 field_name=field,
-                metric_type=distance,
+                metric_type=distance.upper(),
                 index_type="FLAT",
                 index_name="vector_index",
                 params = {}
@@ -138,7 +141,7 @@ def get_images_milvus(indexes, vector_index, field, operator, vector, metadata):
         else:
             index_params.add_index(
                 field_name=field,
-                metric_type=distance,
+                metric_type=distance.upper(),
                 index_type=vector_index.upper(),
                 index_name="vector_index",
                 params = {"n_list": 128}
@@ -163,7 +166,7 @@ def get_images_milvus(indexes, vector_index, field, operator, vector, metadata):
                             filter = metadata,
                             output_fields=["country_name","income", "imagenet_synonyms", "image_rel_path"],
                             search_params={
-                                "metric_type": distance,
+                                "metric_type": distance.upper(),
                                 "params": {"nprobe": 100}
                             })
         end = datetime.now()
@@ -191,7 +194,7 @@ def get_images_milvus(indexes, vector_index, field, operator, vector, metadata):
         return jsonify({"error": "erro"})
 
 
-def get_images_postgresql(sql_search_images, indexes, vector_index):
+def get_images_postgresql(sql_search_images, indexes, vector_index, operator):
     with psycopg.connect(DB_URL) as conn:
         cursor = conn.cursor()
 
@@ -208,7 +211,26 @@ def get_images_postgresql(sql_search_images, indexes, vector_index):
                 cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_l2;")
                 cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_ip;")
                 cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_cosine;")
+
+            if vector_index == 'ivf_flat':
+                cursor.execute("BEGIN;")
+
+                operators = ['l1', 'l2', 'ip', 'cosine']
+
+                for op in operators:
+                    cursor.execute(f"DROP INDEX IF EXISTS hnsw_idx_{op};")
+                    if op != operator:
+                        cursor.execute(f"DROP INDEX IF EXISTS ivfflat_idx_{op};")
+            elif vector_index == 'hnsw':
+                cursor.execute("BEGIN;")
+                operators = ['l1', 'l2', 'ip', 'cosine']
+
+                for op in operators:
+                    cursor.execute(f"DROP INDEX IF EXISTS ivfflat_idx_{op};")
+                    if op != operator:
+                        cursor.execute(f"DROP INDEX IF EXISTS hsnw_idx_{op};")
             
+
             start = datetime.now()
             cursor.execute(sql_search_images)
             end = datetime.now()
@@ -254,8 +276,7 @@ def get_images_postgresql(sql_search_images, indexes, vector_index):
 
             print(images_metadata_formatted)
 
-            if indexes is None:
-                cursor.execute("ROLLBACK;")
+            cursor.execute("ROLLBACK;")
         
             return {"images_metadata": images_metadata_formatted, "query_time": str(query_time)}
 
@@ -264,12 +285,13 @@ def get_images_postgresql(sql_search_images, indexes, vector_index):
             return {"error": "erro"}
     
 
-def get_query_analysis_postgresql(sql_search_images, indexes, vector_index):
+def get_query_analysis_postgresql(sql_search_images, indexes, vector_index, operator):
     with psycopg.connect(DB_URL) as conn:
         cursor = conn.cursor()
-              
+        
+        print(len(vector_index))
         try:
-            if indexes is None or (vector_index is None or vector_index == ''):
+            if indexes is None:
                 cursor.execute("BEGIN;")
                 cursor.execute("DROP INDEX IF EXISTS country_name_idx;")
                 cursor.execute("DROP INDEX IF EXISTS region_id_idx;")
@@ -284,23 +306,30 @@ def get_query_analysis_postgresql(sql_search_images, indexes, vector_index):
 
             if vector_index == 'ivf_flat':
                 cursor.execute("BEGIN;")
-                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_cosine;")
-                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_l1;")
-                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_l2;")
-                cursor.execute("DROP INDEX IF EXISTS hnsw_idx_ip;")
+
+                operators = ['l1', 'l2', 'ip', 'cosine']
+
+                for op in operators:
+                    cursor.execute(f"DROP INDEX IF EXISTS hnsw_idx_{op};")
+                    if op != operator:
+                        cursor.execute(f"DROP INDEX IF EXISTS ivfflat_idx_{op};")
             elif vector_index == 'hnsw':
                 cursor.execute("BEGIN;")
-                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_l2;")
-                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_ip;")
-                cursor.execute("DROP INDEX IF EXISTS ivfflat_idx_cosine;")
-            
+                operators = ['l1', 'l2', 'ip', 'cosine']
+
+                for op in operators:
+                    cursor.execute(f"DROP INDEX IF EXISTS ivfflat_idx_{op};")
+                    if op != operator:
+                        cursor.execute(f"DROP INDEX IF EXISTS hsnw_idx_{op};")
+
+
+
             explain_query = "EXPLAIN ANALYZE " + sql_search_images
             cursor.execute(explain_query)
 
             analysis = cursor.fetchall()
 
-            if indexes is None or (vector_index is not None or vector_index == ''):
-                cursor.execute("ROLLBACK;")
+            cursor.execute("ROLLBACK;")
 
             return {"query_analysis": analysis}
                 
@@ -323,11 +352,11 @@ def postgresql(action, indexes, vector_index, table, operator, vector, metadata)
 
                 
     if action == 'get-images':
-        res = get_images_postgresql(sql_search_images, indexes, vector_index)
+        res = get_images_postgresql(sql_search_images, indexes, vector_index, operator)
         return jsonify(res)
         
     if action == 'get-analysis':
-        res = get_query_analysis_postgresql(sql_search_images, indexes, vector_index)
+        res = get_query_analysis_postgresql(sql_search_images, indexes, vector_index, operator)
         return jsonify(res)
     
 

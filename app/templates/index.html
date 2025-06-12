@@ -38,10 +38,10 @@
                 </select> </p>
                 <p><label for="select-operador">Operador:</label>
                 <select name="operador" id="select-operador">
-                    <option id="operador_l1" value="<+>">L1</option>
-                    <option value="<->">L2</option>
-                    <option value="<=>" selected>Cosine</option>
-                    <option value="<#>">Inner product</option>
+                    <option id="operador_l1" value="l1">L1</option>
+                    <option value="l2">L2</option>
+                    <option value="cosine" selected>Cosine</option>
+                    <option value="ip">Inner product</option>
                 </select> </p>
                 <p><label for="select-country">Pais:</label>
                 <select name="pais" id="select-country">
@@ -159,6 +159,7 @@
 
             if(!estaSelecionado) {
                 document.getElementById("select-index").style.display = "none";
+                document.getElementById("select-index").value = "";
                 const bd = document.getElementById("select-bd").value;
                 if(bd === "postgresql")
                     document.getElementById("operador_l1").style.display = "block";
@@ -174,8 +175,10 @@
             const valorSelecionado = this.value; 
 
             if(bd === "postgresql"){
-                if (valorSelecionado === "ivfflat")
+                if (valorSelecionado === "ivf_flat"){
                     document.getElementById("operador_l1").style.display = "none";
+                    document.getElementById("select-operador").value = "cosine";
+                }
                 else
                     document.getElementById("operador_l1").style.display = "block";
             }
