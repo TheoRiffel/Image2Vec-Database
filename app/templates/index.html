@@ -69,11 +69,10 @@
     
     <section class="view">
         <h2> Resultado </h2>
-        <div id="result"> 
+        <div id="query-result"> 
         </div>
         <div class="loader" style="display: none;" id="loader"></div>
-        <div id="images-list">         
-        </div>
+        <div id="images-result"></div>
     </section>
     
 
@@ -82,6 +81,7 @@
             document.getElementById("operador_l1").style.display = "none";
             document.getElementById("get-images").disabled = true; 
             document.getElementById("get-analysis").disabled = true; 
+            document.getElementById("get-analysis").style.display = "none";
             $.ajax({
                 type: 'GET',
                 url: '/metadata',
@@ -136,11 +136,13 @@
                $("#select-tabela").append("<option value='vector_clip'>vector_768</option>");
                $("#select-tabela").append("<option value='vector'>vector_4096</option>");
                operador.style.display = "none";
+               document.getElementById("get-analysis").style.display = "block";
             }
             else if (valorSelecionado === "comparar"){
                $("#select-tabela").append("<option value='vector'>vector</option>");
                $("#select-tabela").append("<option value='vector_clip'>vector_clip</option>");
                operador.style.display = "none";
+               document.getElementById("get-analysis").style.display = "none";
             }
             else{
                 $("#select-tabela").append("<option value='img_pgvector'>img_pgvector</option>");
@@ -148,6 +150,7 @@
                 $("#select-tabela").append("<option value='img_pgvector_clip'>img_pgvector_clip</option>");
                 $("#select-tabela").append("<option value='img_pgarray_clip'>img_pgarray_clip</option>");
                 operador.style.display = "block";
+                document.getElementById("get-analysis").style.display = "block";
             }
             console.log(valorSelecionado);
 
@@ -187,8 +190,8 @@
 
         $(document).on("submit", "#send-image", function (e) {
             e.preventDefault();
-            $("#images-list").empty();
-            $("#result").empty();
+            $("#images-result").empty();
+            $("#query-result").empty();
             document.getElementById("get-images").disabled = true;
             document.getElementById("get-analysis").disabled = true; 
             document.getElementById("loader").style.display="block";
@@ -232,16 +235,18 @@
 
                             analysisDiv.append(p);
                         });
-                        $("#result").append(analysisDiv);
+                        $("#query-result").append(analysisDiv);
                     }
 
-                    if (response.error){
+                    else if (response.error){
                         var resp = "<p> <span id='notFound'> <strong> "+response.error+"</strong> </span> </p>"
-                        $("#result").html(resp);
+                        $("#query-result").html(resp);
                     }
                     else if (response.images_metadata){
                         var result = "<p> Tempo de consulta: <span id='query-time-value'>" + response.query_time +"</span> s</p>"
-                        $("#result").html(result);
+                        $("#query-result").html(result);
+
+                        $("#images-result").append("<div class='images-list'> </div>")
                         response.images_metadata.forEach(element => {
                             console.log(element.image_path)
                             
@@ -256,10 +261,48 @@
                             `
 
 
-                            $("#images-list").append(resp);
+                            $(".images-list").append(resp);
                         });
                     }   
-                    
+                    else if (response.images_compare){
+                        $("#images-result").append("<h3> PostgreSQL </h3>")
+                        $("#images-result").append("<div class='images-list' id='images-postgresql'> </div>")
+                        response.images_compare.images_postgresql.forEach(element => {
+                            console.log(element.image_path)
+                            
+                            const resp = `
+                            <div class= 'image-result'>
+                                <img src= '${element.image_path}' width='240'>
+                                <p> <b>País: </b>${element.image_country} </p>
+                                <p> <b>Renda: </b>${element.image_income} </p>
+                                <p> <b>Sinonimos: </b>${element.image_synonyms} </p>
+                                <p> <b>Distância: </b> ${element.image_distance}</p>
+                            </div>
+                            `
+
+
+                            $("#images-postgresql").append(resp);
+                        });
+                        $("#images-result").append("<h3> Milvus </h3>")
+
+                        $("#images-result").append("<div class='images-list' id='images-milvus'> </div>")
+                        response.images_compare.images_milvus.forEach(element => {
+                            console.log(element.image_path)
+                            
+                            const resp = `
+                            <div class= 'image-result'>
+                                <img src= '${element.image_path}' width='240'>
+                                <p> <b>País: </b>${element.image_country} </p>
+                                <p> <b>Renda: </b>${element.image_income} </p>
+                                <p> <b>Sinonimos: </b>${element.image_synonyms} </p>
+                                <p> <b>Distância: </b> ${element.image_distance}</p>
+                            </div>
+                            `
+
+
+                            $("#images-milvus").append(resp);
+                        });
+                    }
                       
                     document.getElementById("get-images").disabled = false;  
                     document.getElementById("get-analysis").disabled = false; 

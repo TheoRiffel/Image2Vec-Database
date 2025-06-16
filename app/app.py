@@ -130,6 +130,10 @@ def get_images_milvus(indexes, vector_index, field, distance, vector, metadata):
         index_params = MilvusClient.prepare_index_params()
 
         if indexes == None or len(vector_index) == 0:
+            client.drop_index(collection_name="ImageData", index_name="country_name_idx")
+            client.drop_index(collection_name="ImageData", index_name="region_id_idx")
+            client.drop_index(collection_name="ImageData", index_name="income_idx")
+
             index_params.add_index(
                 field_name=field,
                 metric_type=distance.upper(),
@@ -146,6 +150,25 @@ def get_images_milvus(indexes, vector_index, field, distance, vector, metadata):
                 index_name="vector_index",
                 params = {"n_list": 128}
             )
+
+            index_params.add_index(
+                field_name="country_name",
+                index_type="INVERTED",
+                index_name="country_name_idx"
+            )
+
+            index_params.add_index(
+                field_name="region_id",
+                index_type="INVERTED",
+                index_name="region_id_idx"
+            )
+
+            index_params.add_index(
+                field_name="income",
+                index_type="INVERTED",
+                index_name="income_idx"
+            )
+
 
         print(index_params)
 
@@ -357,12 +380,36 @@ def postgresql(action, indexes, vector_index, table, operator, vector, metadata)
     if action == 'get-analysis':
         return jsonify(get_query_analysis_postgresql(sql_search_images, indexes, vector_index, operator))
 
+
 def milvus(action, indexes, vector_index, table, operator, vector, filter):
     if action == 'get-images':
         return jsonify(get_images_milvus(indexes, vector_index, table, operator, vector, filter))
         
     if action == 'get-analysis':
         return jsonify({"error":"Nao foi implementado ainda!"})
+
+def comparar(indexes, vector_index, table, operator, vector, metadata, filter):
+    pg_table = 'img_pg'+table
+    sql_search_images = build_query_vector(pg_table, operator, vector, metadata)
+
+    try:
+        res_postgresql = get_images_postgresql(sql_search_images, indexes, vector_index, operator)
+        res_milvus = get_images_milvus(indexes, vector_index, table, operator, vector, filter)
+        
+        res_postgresql = res_postgresql['images_metadata'][:3]
+        res_milvus = res_milvus['images_metadata'][:3]
+
+        images_compare = {
+            'images_postgresql': res_postgresql,
+            'images_milvus': res_milvus
+        }
+
+        return jsonify({"images_compare": images_compare})
+    
+    except Exception as e:
+        print(e)
+        return jsonify({"error": "Erro!"})
+
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -385,7 +432,6 @@ def upload():
         vector = encoder.encode_clip(file) if 'clip' in table else encoder.encode(file)
 
         metadata = []
-        metadata_milvus = []
         filter = ""
         filter_params = {}
         if country != "":
@@ -418,7 +464,7 @@ def upload():
             return milvus(action, indexes, vector_index, table, operator, vector, filter)
         
         if database == "comparar":
-            pass
+            return comparar(indexes, vector_index, table, operator, vector, metadata, filter)
 
         
         
