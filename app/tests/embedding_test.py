@@ -127,4 +127,4 @@ for selected_table, use_index in tables:
             print(f"Testing table '{table_name}' with operator '{operator}' ({i+1}/{test_amount})")
     
 df = pd.DataFrame(rows, columns=['table', 'operator', 'execution_time', 'planning_time'])
-df.to_csv('./app/tests/embedding_test.csv')
+df.to_csv('./tests/embedding_test.csv')
