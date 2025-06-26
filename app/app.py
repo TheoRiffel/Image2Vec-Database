@@ -453,8 +453,8 @@ def upload():
             filter_params["max_income"] = income[1]
             if len(filter) != 0:
                 filter += " AND "
-            filter += f"income <= {income[0]} AND "
-            filter += f"income >= {income[1]}"
+            filter += f"income >= {income[0]} AND "
+            filter += f"income <= {income[1]}"
         
 
         if database == "postgresql":
