@@ -266,6 +266,7 @@
                     }   
                     else if (response.images_compare){
                         $("#images-result").append("<h3> PostgreSQL </h3>")
+                        $("#images-result").append( "<p> Tempo de consulta: <span id='query-time-value-pg'>" + response.images_compare.time_postgresql +"</span> s</p>")
                         $("#images-result").append("<div class='images-list' id='images-postgresql'> </div>")
                         response.images_compare.images_postgresql.forEach(element => {
                             console.log(element.image_path)
@@ -284,7 +285,7 @@
                             $("#images-postgresql").append(resp);
                         });
                         $("#images-result").append("<h3> Milvus </h3>")
-
+                        $("#images-result").append( "<p> Tempo de consulta: <span id='query-time-value-milvus'>" + response.images_compare.time_milvus +"</span> s</p>")
                         $("#images-result").append("<div class='images-list' id='images-milvus'> </div>")
                         response.images_compare.images_milvus.forEach(element => {
                             console.log(element.image_path)

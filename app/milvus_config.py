@@ -2,6 +2,7 @@ import pandas as pd
 import json
 from pymilvus import MilvusClient, DataType
 from embed import getEmbeddings, getEmbeddings_clip
+from datetime import datetime
 
 def save_data(item, data):
     info = {
@@ -66,7 +67,6 @@ def createSchema():
         datatype=DataType.ARRAY,
         element_type=DataType.VARCHAR,
         max_capacity=10, max_length=50,
-        nullable=True,
     )
     schema.add_field(
         field_name="place",
@@ -82,14 +82,12 @@ def createSchema():
         datatype=DataType.ARRAY,
         element_type=DataType.VARCHAR,
         max_capacity=10, max_length=50,
-        nullable=True
     )
     schema.add_field(
         field_name="imagenet_sysnet_id",
         datatype=DataType.ARRAY,
         element_type=DataType.INT8,
         max_capacity=10,
-        nullable=True
     )
 
     return schema
@@ -123,9 +121,12 @@ if __name__ == "__main__":
                              enable_dynamic_field=True)
 
     try:
+        start = datetime.now()
         res = client.insert(collection_name="ImageData", data=data)
+        end = datetime.now()
+            
+        print("Tempo de Execução:", end-start)
+        
     except Exception as e:
         print(f"Error inserting data: {e}")
         res = None
-
-    print(res)

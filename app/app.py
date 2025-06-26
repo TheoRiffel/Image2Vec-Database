@@ -184,10 +184,10 @@ def get_images_milvus(indexes, vector_index, field, distance, vector, metadata):
         start = datetime.now()
         res = client.search(collection_name="ImageData",
                             data=[vector],
-                            limit=6,
+                            limit=4,
                             anns_field=field,
                             filter = metadata,
-                            output_fields=["country_name","income", "imagenet_synonyms", "image_rel_path"],
+                            output_fields=["country_name","income", "imagenet_synonyms", "image_rel_path", "income", "region_id"],
                             search_params={
                                 "metric_type": distance.upper(),
                                 "params": {"nprobe": 100}
@@ -396,12 +396,16 @@ def comparar(indexes, vector_index, table, operator, vector, metadata, filter):
         res_postgresql = get_images_postgresql(sql_search_images, indexes, vector_index, operator)
         res_milvus = get_images_milvus(indexes, vector_index, table, operator, vector, filter)
         
+        query_time_postgresql = res_postgresql['query_time']
         res_postgresql = res_postgresql['images_metadata'][:3]
+        query_time_milvus = res_milvus['query_time']
         res_milvus = res_milvus['images_metadata'][:3]
 
         images_compare = {
             'images_postgresql': res_postgresql,
-            'images_milvus': res_milvus
+            'images_milvus': res_milvus,
+            'time_postgresql':query_time_postgresql,
+            'time_milvus':query_time_milvus,
         }
 
         return jsonify({"images_compare": images_compare})

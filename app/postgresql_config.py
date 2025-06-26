@@ -5,6 +5,7 @@ import json
 import pandas as pd
 from dotenv import load_dotenv
 from embed import getEmbeddings, getEmbeddings_clip
+from datetime import datetime
 
 load_dotenv()
 
@@ -49,9 +50,13 @@ def insertImages(vectors, vectors_clip, metadata):
         sql = "INSERT INTO img_pgvector (id, embedding) VALUES (%s, %s)"
 
         try:
+            start = datetime.now()
             cursor.executemany(sql, vectors)
+            end = datetime.now()
+            
             conn.commit()
             print("Inserted")
+            print("Tempo de Execução (Vector 4096):", end-start)
         except Exception as e:
             print(e)
     
@@ -64,6 +69,7 @@ def insertImages(vectors, vectors_clip, metadata):
         vectors_pg = [(vid, json.loads(vec)) for vid, vec in vectors]
         try:
             cursor.executemany(sql, vectors_pg)
+            
             conn.commit()
             print("Inserted")
         except Exception as e:
@@ -76,9 +82,13 @@ def insertImages(vectors, vectors_clip, metadata):
         sql = "INSERT INTO img_pgvector_clip (id, embedding) VALUES (%s, %s)"
 
         try:
+            start = datetime.now()
             cursor.executemany(sql, vectors_clip)
+            end = datetime.now()
+            
             conn.commit()
             print("Inserted")
+            print("Tempo de Execução (Vector 768):", end-start)
         except Exception as e:
             print(e)
     
