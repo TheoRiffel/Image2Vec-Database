@@ -58,8 +58,8 @@
                 <input type="checkbox" name="use-indexes" id="use-indexes" checked>
                 <select name="indice" id="select-index">
                     <option value="" selected></option>
-                    <option value="ivf_flat" >IVFFLAT</option>
-                    <option value="hnsw" >HNSW</option>
+                    <option value="ivf_flat">IVFFLAT</option>
+                    <option value="hnsw"  id="index-hnsw" >HNSW</option>
                 </select> </p>
                 <button type="submit" id="get-images" name="get-images" value="get-images"> Obter Imagens </button>
                 <button type="submit" id="get-analysis" name="get-analysis" value="get-analysis"> Analisar Consulta </button>                
@@ -79,6 +79,7 @@
     <script>
         $(document).ready(function() {
             document.getElementById("operador_l1").style.display = "none";
+            document.getElementById("index-hnsw").style.display = "none";
             document.getElementById("get-images").disabled = true; 
             document.getElementById("get-analysis").disabled = true; 
             document.getElementById("get-analysis").style.display = "none";
@@ -137,12 +138,14 @@
                $("#select-tabela").append("<option value='vector'>vector_4096</option>");
                operador.style.display = "none";
                document.getElementById("get-analysis").style.display = "block";
+               document.getElementById("index-hnsw").style.display = "none";
             }
             else if (valorSelecionado === "comparar"){
                $("#select-tabela").append("<option value='vector'>vector</option>");
                $("#select-tabela").append("<option value='vector_clip'>vector_clip</option>");
                operador.style.display = "none";
                document.getElementById("get-analysis").style.display = "none";
+               document.getElementById("index-hnsw").style.display = "none";
             }
             else{
                 $("#select-tabela").append("<option value='img_pgvector'>img_pgvector</option>");
@@ -151,6 +154,7 @@
                 $("#select-tabela").append("<option value='img_pgarray_clip'>img_pgarray_clip</option>");
                 operador.style.display = "block";
                 document.getElementById("get-analysis").style.display = "block";
+                document.getElementById("index-hnsw").style.display = "block";
             }
             console.log(valorSelecionado);
 
@@ -159,17 +163,23 @@
         $(document).on("change", "#use-indexes", function(e) {
             const usarIndices = document.getElementById("use-indexes");
             const estaSelecionado = usarIndices.checked;
+            const bd = document.getElementById("select-bd").value;
 
             if(!estaSelecionado) {
                 document.getElementById("select-index").style.display = "none";
                 document.getElementById("select-index").value = "";
-                const bd = document.getElementById("select-bd").value;
+
                 if(bd === "postgresql")
                     document.getElementById("operador_l1").style.display = "block";
             }
             
-            else
+            else{
                 document.getElementById("select-index").style.display = "inline";
+                if(bd === "postgresql")
+                    document.getElementById("index-hnsw").style.display = "block";
+                else
+                    document.getElementById("index-hnsw").style.display = "none";
+            }
     
         });
 
